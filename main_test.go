@@ -177,11 +177,11 @@ func TestOutputDirValidDirPasses(t *testing.T) {
 
 func TestValidateAllURLsReportsAll(t *testing.T) {
 	urls := []string{
-		"https://www.crunchyroll.com/watch/GGGGGGGGG",      // valid
+		"https://www.crunchyroll.com/watch/GGGGGGGGG",       // valid
 		"https://www.crunchyroll.com/series/GGGGGGGGGGGG",   // valid
-		"https://www.crunchyroll.com/watch/short",            // too short
-		"https://www.crunchyroll.com/browse/GGGGGGGGG",       // wrong type
-		"https://www.crunchyroll.com/watch/GGGGGGGGGGGGGGG",  // too long
+		"https://www.crunchyroll.com/watch/short",           // too short
+		"https://www.crunchyroll.com/browse/GGGGGGGGG",      // wrong type
+		"https://www.crunchyroll.com/watch/GGGGGGGGGGGGGGG", // too long
 	}
 	invalid := validateAllURLs(urls)
 	if len(invalid) != 3 {
@@ -350,8 +350,8 @@ func TestIsAllNilConfig(t *testing.T) {
 	})
 
 	fields := map[string]func(*config.Config){
-		"AudioLang":      func(c *config.Config) { s := "x"; c.AudioLang = &s },
-		"SubsLang":       func(c *config.Config) { s := "x"; c.SubsLang = &s },
+		"AudioLang":      func(c *config.Config) { c.AudioLang = []string{"x"} },
+		"SubsLang":       func(c *config.Config) { c.SubsLang = []string{"x"} },
 		"VideoQuality":   func(c *config.Config) { s := "x"; c.VideoQuality = &s },
 		"AudioQuality":   func(c *config.Config) { s := "x"; c.AudioQuality = &s },
 		"Workers":        func(c *config.Config) { i := 1; c.Workers = &i },

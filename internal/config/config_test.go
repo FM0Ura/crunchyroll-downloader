@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -222,6 +223,12 @@ func TestLoadFileNotFound(t *testing.T) {
 	if cfg.WidevineDevice != nil {
 		t.Fatal("WidevineDevice should be nil for missing file")
 	}
+	if cfg.LogLevel != nil {
+		t.Fatal("LogLevel should be nil for missing file")
+	}
+	if cfg.LogFile != nil {
+		t.Fatal("LogFile should be nil for missing file")
+	}
 }
 
 func TestLoadInvalidJSON(t *testing.T) {
@@ -245,14 +252,16 @@ func TestLoadInvalidJSON(t *testing.T) {
 func TestLoadValidFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "valid.json")
 	jsonContent := `{
-		"audio_lang": "en-US",
-		"subs_lang": "pt-BR",
+		"audio_lang": ["en-US"],
+		"subs_lang": ["pt-BR"],
 		"video_quality": "720p",
 		"audio_quality": "128k",
 		"workers": 5,
 		"output_dir": "/tmp/output",
 		"etp_rt": "my-cookie",
-		"widevine_device": "/tmp/device.wvd"
+		"widevine_device": "/tmp/device.wvd",
+		"log_level": "debug",
+		"log_file": "/tmp/animeheaven.log"
 	}`
 	if err := os.WriteFile(path, []byte(jsonContent), 0644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
@@ -266,10 +275,10 @@ func TestLoadValidFile(t *testing.T) {
 		t.Fatal("Load() returned nil Config")
 	}
 
-	if cfg.AudioLang == nil || *cfg.AudioLang != "en-US" {
+	if !slices.Equal(cfg.AudioLang, []string{"en-US"}) {
 		t.Fatalf("AudioLang = %v, want 'en-US'", cfg.AudioLang)
 	}
-	if cfg.SubsLang == nil || *cfg.SubsLang != "pt-BR" {
+	if !slices.Equal(cfg.SubsLang, []string{"pt-BR"}) {
 		t.Fatalf("SubsLang = %v, want 'pt-BR'", cfg.SubsLang)
 	}
 	if cfg.VideoQuality == nil || *cfg.VideoQuality != "720p" {
@@ -289,6 +298,75 @@ func TestLoadValidFile(t *testing.T) {
 	}
 	if cfg.WidevineDevice == nil || *cfg.WidevineDevice != "/tmp/device.wvd" {
 		t.Fatalf("WidevineDevice = %v, want '/tmp/device.wvd'", cfg.WidevineDevice)
+	}
+	if cfg.LogLevel == nil || *cfg.LogLevel != "debug" {
+		t.Fatalf("LogLevel = %v, want 'debug'", cfg.LogLevel)
+	}
+	if cfg.LogFile == nil || *cfg.LogFile != "/tmp/animeheaven.log" {
+		t.Fatalf("LogFile = %v, want '/tmp/animeheaven.log'", cfg.LogFile)
+	}
+}
+
+func TestLoadLanguageArrays(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "arrays.json")
+	jsonContent := `{
+		"audio_lang": ["ja-JP", "en-US"],
+		"subs_lang": ["en-US"]
+	}`
+	if err := os.WriteFile(path, []byte(jsonContent), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !slices.Equal(cfg.AudioLang, []string{"ja-JP", "en-US"}) {
+		t.Fatalf("AudioLang = %v, want [ja-JP en-US]", cfg.AudioLang)
+	}
+	if !slices.Equal(cfg.SubsLang, []string{"en-US"}) {
+		t.Fatalf("SubsLang = %v, want [en-US]", cfg.SubsLang)
+	}
+}
+
+func TestLoadLegacyStringLanguages(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "legacy.json")
+	jsonContent := `{
+		"audio_lang": "ja-JP",
+		"subs_lang": "en-US"
+	}`
+	if err := os.WriteFile(path, []byte(jsonContent), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !slices.Equal(cfg.AudioLang, []string{"ja-JP"}) {
+		t.Fatalf("AudioLang = %v, want [ja-JP]", cfg.AudioLang)
+	}
+	if !slices.Equal(cfg.SubsLang, []string{"en-US"}) {
+		t.Fatalf("SubsLang = %v, want [en-US]", cfg.SubsLang)
+	}
+}
+
+func TestLoadExplicitEmptyLanguages(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty.json")
+	jsonContent := `{"audio_lang":[]}`
+	if err := os.WriteFile(path, []byte(jsonContent), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.AudioLang == nil {
+		t.Fatal("AudioLang = nil, want explicit empty slice")
+	}
+	if len(cfg.AudioLang) != 0 {
+		t.Fatalf("AudioLang = %v, want empty slice", cfg.AudioLang)
 	}
 }
 
@@ -315,10 +393,10 @@ func TestWriteSkeleton(t *testing.T) {
 	}
 
 	// Check defaults
-	if cfg.AudioLang == nil || *cfg.AudioLang != "ja-JP" {
+	if !slices.Equal(cfg.AudioLang, []string{"ja-JP"}) {
 		t.Fatalf("AudioLang = %v, want 'ja-JP'", cfg.AudioLang)
 	}
-	if cfg.SubsLang == nil || *cfg.SubsLang != "en-US" {
+	if !slices.Equal(cfg.SubsLang, []string{"en-US"}) {
 		t.Fatalf("SubsLang = %v, want 'en-US'", cfg.SubsLang)
 	}
 	if cfg.VideoQuality == nil || *cfg.VideoQuality != "1080p" {
@@ -330,7 +408,19 @@ func TestWriteSkeleton(t *testing.T) {
 	if cfg.Workers == nil || *cfg.Workers != 10 {
 		t.Fatalf("Workers = %v, want 10", cfg.Workers)
 	}
-	// OutputDir, EtpRt, WidevineDevice should not be in the skeleton
+	if cfg.LogLevel == nil || *cfg.LogLevel != "info" {
+		t.Fatalf("LogLevel = %v, want 'info'", cfg.LogLevel)
+	}
+	if !strings.Contains(string(data), `"audio_lang": [`) {
+		t.Fatalf("skeleton does not write audio_lang as array: %s", data)
+	}
+	if !strings.Contains(string(data), `"subs_lang": [`) {
+		t.Fatalf("skeleton does not write subs_lang as array: %s", data)
+	}
+	if !strings.Contains(string(data), `"log_level": "info"`) {
+		t.Fatalf("skeleton does not write log_level default: %s", data)
+	}
+	// OutputDir, EtpRt, WidevineDevice, and LogFile should not be in the skeleton
 	if cfg.OutputDir != nil {
 		t.Fatal("OutputDir should be nil in skeleton")
 	}
@@ -339,6 +429,9 @@ func TestWriteSkeleton(t *testing.T) {
 	}
 	if cfg.WidevineDevice != nil {
 		t.Fatal("WidevineDevice should be nil in skeleton")
+	}
+	if cfg.LogFile != nil {
+		t.Fatal("LogFile should be nil in skeleton")
 	}
 }
 
@@ -358,30 +451,35 @@ func TestWriteSkeletonCreatesDirectory(t *testing.T) {
 
 func TestMergeNilOverlay(t *testing.T) {
 	base := &Config{}
-	en := "en-US"
-	base.AudioLang = &en
+	base.AudioLang = []string{"en-US"}
 
 	result := Merge(base, nil)
 	if result == nil {
 		t.Fatal("Merge(base, nil) returned nil")
 	}
-	if result.AudioLang == nil || *result.AudioLang != "en-US" {
+	if !slices.Equal(result.AudioLang, []string{"en-US"}) {
 		t.Fatalf("AudioLang = %v, want 'en-US'", result.AudioLang)
 	}
 }
 
 func TestMergeOverlayFields(t *testing.T) {
 	base := &Config{}
-	ja := "ja-JP"
-	en := "en-US"
-	base.AudioLang = &ja
-	base.SubsLang = &en
+	base.AudioLang = []string{"ja-JP"}
+	base.SubsLang = []string{"en-US"}
+	info := "info"
+	base.LogLevel = &info
+	defaultLog := "/tmp/default.log"
+	base.LogFile = &defaultLog
 
 	overlay := &Config{}
 	videoQ := "720p"
 	overlay.VideoQuality = &videoQ
 	wk := 5
 	overlay.Workers = &wk
+	debug := "debug"
+	overlay.LogLevel = &debug
+	logPath := "/tmp/x.log"
+	overlay.LogFile = &logPath
 
 	result := Merge(base, overlay)
 	if result == nil {
@@ -389,10 +487,10 @@ func TestMergeOverlayFields(t *testing.T) {
 	}
 
 	// Base fields not in overlay should be preserved
-	if result.AudioLang == nil || *result.AudioLang != "ja-JP" {
+	if !slices.Equal(result.AudioLang, []string{"ja-JP"}) {
 		t.Fatalf("AudioLang = %v, want 'ja-JP'", result.AudioLang)
 	}
-	if result.SubsLang == nil || *result.SubsLang != "en-US" {
+	if !slices.Equal(result.SubsLang, []string{"en-US"}) {
 		t.Fatalf("SubsLang = %v, want 'en-US'", result.SubsLang)
 	}
 
@@ -402,6 +500,12 @@ func TestMergeOverlayFields(t *testing.T) {
 	}
 	if result.Workers == nil || *result.Workers != 5 {
 		t.Fatalf("Workers = %v, want 5", result.Workers)
+	}
+	if result.LogLevel == nil || *result.LogLevel != "debug" {
+		t.Fatalf("LogLevel = %v, want 'debug'", result.LogLevel)
+	}
+	if result.LogFile == nil || *result.LogFile != "/tmp/x.log" {
+		t.Fatalf("LogFile = %v, want '/tmp/x.log'", result.LogFile)
 	}
 
 	// Fields set in neither should be nil
@@ -421,13 +525,15 @@ func TestMergeOverlayFields(t *testing.T) {
 
 func TestMergeNilFieldsFallThrough(t *testing.T) {
 	base := &Config{}
-	ja := "ja-JP"
-	base.AudioLang = &ja
+	base.AudioLang = []string{"ja-JP"}
+	info := "info"
+	base.LogLevel = &info
+	defaultLog := "/tmp/default.log"
+	base.LogFile = &defaultLog
 
 	overlay := &Config{}
 	// overlay.AudioLang is nil — should not override
-	en := "en-US"
-	overlay.SubsLang = &en
+	overlay.SubsLang = []string{"en-US"}
 
 	result := Merge(base, overlay)
 	if result == nil {
@@ -435,13 +541,35 @@ func TestMergeNilFieldsFallThrough(t *testing.T) {
 	}
 
 	// Nil overlay fields should not override base
-	if result.AudioLang == nil || *result.AudioLang != "ja-JP" {
+	if !slices.Equal(result.AudioLang, []string{"ja-JP"}) {
 		t.Fatalf("AudioLang = %v, want 'ja-JP' (should not be overridden)", result.AudioLang)
 	}
 
 	// Non-nil overlay fields should be set
-	if result.SubsLang == nil || *result.SubsLang != "en-US" {
+	if !slices.Equal(result.SubsLang, []string{"en-US"}) {
 		t.Fatalf("SubsLang = %v, want 'en-US'", result.SubsLang)
+	}
+	if result.LogLevel == nil || *result.LogLevel != "info" {
+		t.Fatalf("LogLevel = %v, want base 'info'", result.LogLevel)
+	}
+	if result.LogFile == nil || *result.LogFile != "/tmp/default.log" {
+		t.Fatalf("LogFile = %v, want base '/tmp/default.log'", result.LogFile)
+	}
+}
+
+func TestMergeExplicitEmptyLanguages(t *testing.T) {
+	base := &Config{AudioLang: []string{"ja-JP"}}
+	overlay := &Config{AudioLang: []string{}}
+
+	result := Merge(base, overlay)
+	if result == nil {
+		t.Fatal("Merge() returned nil")
+	}
+	if result.AudioLang == nil {
+		t.Fatal("AudioLang = nil, want explicit empty slice")
+	}
+	if len(result.AudioLang) != 0 {
+		t.Fatalf("AudioLang = %v, want empty slice", result.AudioLang)
 	}
 }
 
@@ -476,6 +604,10 @@ func TestMergeBothNil(t *testing.T) {
 	if result.WidevineDevice != nil {
 		t.Fatal("WidevineDevice should be nil")
 	}
+	if result.LogLevel != nil {
+		t.Fatal("LogLevel should be nil")
+	}
+	if result.LogFile != nil {
+		t.Fatal("LogFile should be nil")
+	}
 }
-
-
