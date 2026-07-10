@@ -3,6 +3,7 @@ package download
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -286,10 +287,102 @@ func TestOutputDirCreatesSeriesSubfolderInOutputDir(t *testing.T) {
 		t.Fatal("Episode() error = nil, want error from cancelled context (GetEpisode)")
 	}
 
-	// Verify the series subfolder was created inside outputDir
-	expectedDir := filepath.Join(outputDir, sanitizeFilename("Test Series"))
-	if _, err := os.Stat(expectedDir); os.IsNotExist(err) {
-		t.Fatalf("Episode() did not create series subfolder at %s", expectedDir)
+	// Verify the series root and the nested Season 01 subfolder were created
+	// inside outputDir (D-01/D-03: Series Title/Season NN/ layout).
+	expectedSeriesDir := filepath.Join(outputDir, sanitizeFilename("Test Series"))
+	if _, err := os.Stat(expectedSeriesDir); os.IsNotExist(err) {
+		t.Fatalf("Episode() did not create series subfolder at %s", expectedSeriesDir)
+	}
+	expectedSeasonDir := filepath.Join(expectedSeriesDir, "Season 01")
+	if _, err := os.Stat(expectedSeasonDir); os.IsNotExist(err) {
+		t.Fatalf("Episode() did not create season subfolder at %s", expectedSeasonDir)
+	}
+}
+
+// TestEpisodeOutputSkipsAlreadyDownloadedInNestedLayout proves D-02 resumability
+// still fires on the deeper nested path: when the final
+// Series Title/Season 01/Series Title S01E01 - Title.mkv already exists, the
+// skip path runs and the mux seam is never invoked.
+func TestEpisodeOutputSkipsAlreadyDownloadedInNestedLayout(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	info := testEpisodeInfoWithLocales("ja-JP", nil)
+
+	// Pre-create the nested layout the new path-build produces, including the
+	// deep .mkv file, so the os.Stat skip check (D-02) fires.
+	seriesDir := sanitizeFilename(info.EpisodeMetadata.SeriesTitle)
+	seasonDir := fmt.Sprintf("Season %02d", info.EpisodeMetadata.SeasonNumber)
+	seasonPath := filepath.Join(seriesDir, seasonDir)
+	if err := os.MkdirAll(seasonPath, 0o777); err != nil {
+		t.Fatalf("MkdirAll season path: %v", err)
+	}
+	deepFile := filepath.Join(seasonPath, fmt.Sprintf("%s S%02dE%02d - %s.mkv",
+		seriesDir, info.EpisodeMetadata.SeasonNumber, info.EpisodeMetadata.EpisodeNumber,
+		sanitizeFilename(info.Title)))
+	if err := os.WriteFile(deepFile, []byte("mkv"), 0o600); err != nil {
+		t.Fatalf("WriteFile deep mkv: %v", err)
+	}
+
+	mergeCalls := 0
+	restoreEpisodeTestSeams(t, map[string]*api.Subtitle{})
+	origMerge := episodeMerge
+	episodeMerge = func(context.Context, string, []mux.MediaTrack, []mux.MediaTrack, string, *api.EpisodeInfo) error {
+		mergeCalls++
+		return nil
+	}
+	t.Cleanup(func() { episodeMerge = origMerge })
+
+	client := api.NewTestClient(nil, "https://example.com", "test-token")
+
+	stdout := captureEpisodeStdout(t, func() {
+		err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+		if err != nil {
+			t.Fatalf("Episode() error = %v, want nil skip on already-downloaded deep path", err)
+		}
+	})
+
+	if mergeCalls != 0 {
+		t.Fatalf("episodeMerge invoked %d time(s); want 0 (skip path must short-circuit before mux)", mergeCalls)
+	}
+	if !strings.Contains(stdout, "skipped (already downloaded)") {
+		t.Fatalf("Episode() stdout = %q, want skipped (already downloaded) info line", stdout)
+	}
+}
+
+// TestEpisodeSingleEpisodeMirrorsSeasonLayout (D-03) proves a single-episode
+// invocation (totalEpisodes=1) produces the SAME Series Title/Season NN/ nesting
+// as a season episode would — uniform layout regardless of invocation style.
+func TestEpisodeSingleEpisodeMirrorsSeasonLayout(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	info := testEpisodeInfoWithLocales("ja-JP", nil)
+
+	var capturedOutputFile string
+	restoreEpisodeTestSeams(t, map[string]*api.Subtitle{})
+	origMerge := episodeMerge
+	episodeMerge = func(_ context.Context, _ string, _ []mux.MediaTrack, _ []mux.MediaTrack, outputFile string, _ *api.EpisodeInfo) error {
+		capturedOutputFile = outputFile
+		return os.WriteFile(outputFile, []byte("mkv"), 0o600)
+	}
+	t.Cleanup(func() { episodeMerge = origMerge })
+
+	client := api.NewTestClient(nil, "https://example.com", "test-token")
+
+	if err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1); err != nil {
+		t.Fatalf("Episode() error = %v, want nil single-episode run", err)
+	}
+
+	// Assert the deep nested path: .../Series Title/Season 01/Series Title S01E01 - Title.mkv
+	expectedSeasonSegment := filepath.Join(sanitizeFilename(info.EpisodeMetadata.SeriesTitle), "Season 01")
+	if !strings.Contains(capturedOutputFile, expectedSeasonSegment) {
+		t.Fatalf("single-episode outputFile = %q, want it to contain nested %q segment", capturedOutputFile, expectedSeasonSegment)
+	}
+	if strings.Contains(capturedOutputFile, "[") {
+		t.Fatalf("single-episode outputFile = %q, must NOT contain a quality bracket (D-04)", capturedOutputFile)
 	}
 }
 
