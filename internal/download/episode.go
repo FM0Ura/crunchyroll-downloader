@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"crunchyroll-downloader/internal/api"
+	"crunchyroll-downloader/internal/diag"
 	"crunchyroll-downloader/internal/drm"
 	"crunchyroll-downloader/internal/media"
 	"crunchyroll-downloader/internal/mux"
@@ -122,6 +123,9 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 				return fmt.Errorf("primary audio locale %s not available for episode %d", locale, info.EpisodeMetadata.EpisodeNumber)
 			}
 			output.Global.Warn("Skipping %s audio: not available for episode %d", locale, info.EpisodeMetadata.EpisodeNumber)
+			if diag.DownloadLogger != nil {
+				diag.DownloadLogger.Warn("skipped track", "episode", info.EpisodeMetadata.EpisodeNumber, "kind", "audio", "locale", locale)
+			}
 			skippedTracks = append(skippedTracks, locale+" dub")
 			continue
 		}
@@ -132,6 +136,9 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 	}
 
 	output.Global.Info("[Episode %d/%d] %s (S%02dE%02d) ...", info.EpisodeMetadata.EpisodeNumber, totalEpisodes, info.Title, info.EpisodeMetadata.SeasonNumber, info.EpisodeMetadata.EpisodeNumber)
+	if diag.DownloadLogger != nil {
+		diag.DownloadLogger.Info("episode_start", "ep", info.EpisodeMetadata.EpisodeNumber, "season", info.EpisodeMetadata.SeasonNumber)
+	}
 
 	activeStreams := map[string]string{}
 	var tempFiles []string
@@ -177,6 +184,9 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 				return fmt.Errorf("primary subtitle locale %s not available for episode %d", locale, info.EpisodeMetadata.EpisodeNumber)
 			}
 			output.Global.Warn("Skipping %s subtitles: not available for episode %d", locale, info.EpisodeMetadata.EpisodeNumber)
+			if diag.DownloadLogger != nil {
+				diag.DownloadLogger.Warn("skipped track", "episode", info.EpisodeMetadata.EpisodeNumber, "kind", "subtitle", "locale", locale)
+			}
 			skippedTracks = append(skippedTracks, locale+" sub")
 			continue
 		}
@@ -335,14 +345,19 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 	// Per-episode success result line
 	duration := time.Since(episodeStart).Round(time.Second)
 	var fileSizeStr string
+	var fileSize int64
 	if fi, err := os.Stat(outputFile); err == nil {
-		fileSizeStr = formatFileSize(fi.Size())
+		fileSize = fi.Size()
+		fileSizeStr = formatFileSize(fileSize)
 	}
 	output.Global.Info("%s[Episode %d/%d] %s ... %s%s %s%s %s",
 		output.ANSIGreen,
 		info.EpisodeMetadata.EpisodeNumber, totalEpisodes, info.Title,
 		output.ANSIGreen, "✓", output.ANSIReset,
 		fileSizeStr, formatDuration(duration))
+	if diag.DownloadLogger != nil {
+		diag.DownloadLogger.Info("episode_finish", "ep", info.EpisodeMetadata.EpisodeNumber, "duration", duration.String(), "size_bytes", fileSize)
+	}
 	if len(skippedTracks) > 0 {
 		output.Global.Warn("Episode %d downloaded partially: %d track(s) skipped (%s)",
 			info.EpisodeMetadata.EpisodeNumber, len(skippedTracks), strings.Join(skippedTracks, ", "))

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"crunchyroll-downloader/internal/api"
+	"crunchyroll-downloader/internal/diag"
 	"crunchyroll-downloader/internal/output"
 )
 
@@ -80,11 +81,15 @@ func runSeason(ctx context.Context, client *api.Client, videoQuality, audioQuali
 		for _, f := range failures {
 			output.Global.Error("  Episode %d: %v", f.Number, f.Err)
 		}
-		return &SeasonError{
+		err := &SeasonError{
 			Failed: len(failures),
 			Total:  len(episodes),
 			err:    fmt.Errorf("season %d: %d of %d episodes failed: %s: %w", episodes[0].SeasonNumber, len(failures), len(episodes), formatFailedList(failures), failures[0].Err),
 		}
+		if diag.DownloadLogger != nil {
+			diag.DownloadLogger.Info("season_failure", "error", err.Error())
+		}
+		return err
 	}
 
 	output.Global.Info("%sSeason %d download complete. All %d episodes successful.%s",
