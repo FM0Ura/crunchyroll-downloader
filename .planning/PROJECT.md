@@ -8,6 +8,18 @@ A CLI tool written in Go that downloads anime episodes from Crunchyroll, decrypt
 
 Download any anime episode or full season from Crunchyroll into a single playable MKV file with chosen audio and subtitle tracks.
 
+## Current Milestone: v1.1 Storage, CLI & Error Handling
+
+**Goal:** Reduce storage footprint, modernize CLI with Bubble Tea, and harden download error handling.
+
+**Target features:**
+- Storage optimization via compression (research best quality/size trade-offs)
+- Bubble Tea TUI for interactive CLI experience
+- Graceful error handling for missing audio/subtitle tracks
+- Organized download output structure
+- Metadata injection into anime folders
+- Structured strategic logging for bug/error identification
+
 ## Requirements
 
 ### Validated
@@ -112,6 +124,23 @@ Current state: 9 test packages, all passing with -race. Zero panic() calls. RAM 
 | Table-driven stdlib tests only | No testify dependency (D-03 from Phase 5) | ✓ Good |
 | CI continue-on-error for lint | Lint issues don't block PR merging | ✓ Good |
 
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
 ---
 
-*Last updated: 2026-07-10 after v1.0 milestone completion*
+*Last updated: 2026-07-10 after v1.1 milestone initialization*

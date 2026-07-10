@@ -43,3 +43,4 @@ private_key.pem
 .agents/
 .opencode/
 .serena/
+.planning/research/.cache/
