@@ -9,18 +9,18 @@ Requirements for milestone v1.1 (Storage, CLI & Error Handling). Each maps to a 
 
 ### Error Handling
 
-- [ ] **ERR-01**: User can download an episode when a requested non-primary audio language is missing (warn + skip that track, not abort)
-- [ ] **ERR-02**: User can download an episode when a requested non-primary subtitle language is missing (warn + skip that track, not abort)
-- [ ] **ERR-03**: User gets a hard error when ALL audio tracks are missing (no silent empty MKV)
-- [ ] **ERR-04**: Muxer rejects empty or mismatched input tracks before invoking FFmpeg (os.Stat each input, reject empty) to prevent positional -map mislabeling dubs
+- [x] **ERR-01**: User can download an episode when a requested non-primary audio language is missing (warn + skip that track, not abort)
+- [x] **ERR-02**: User can download an episode when a requested non-primary subtitle language is missing (warn + skip that track, not abort)
+- [x] **ERR-03**: User gets a hard error when ALL audio tracks are missing (no silent empty MKV)
+- [x] **ERR-04**: Muxer rejects empty or mismatched input tracks before invoking FFmpeg (os.Stat each input, reject empty) to prevent positional -map mislabeling dubs
 
 ### Logging
 
-- [ ] **LOG-01**: User can configure structured log output via `--log-level` (Debug/Info/Warn/Error) and `--log-file` (destination path) flags
-- [ ] **LOG-02**: Diagnostic logs are scoped per subsystem (download/drm/media/mux/api) via slog WithGroup so a failed-run log dump reads with component grouping
-- [ ] **LOG-03**: Log files are rotated automatically (lumberjack, 5-10MB max, 3 backups) to avoid unbounded disk growth on long download runs
-- [ ] **LOG-04**: Structured logs redact PII (bearer tokens, cookies, etp_rt, client_id, private_key) via ReplaceAttr wrapper — no secrets written to disk
-- [ ] **LOG-05**: Default log level emits strategic events only (episode start/finish, FFmpeg summary, token refresh, season failure) — not per-segment noise
+- [x] **LOG-01**: User can configure structured log output via `--log-level` (Debug/Info/Warn/Error) and `--log-file` (destination path) flags
+- [x] **LOG-02**: Diagnostic logs are scoped per subsystem (download/drm/media/mux/api) via slog WithGroup so a failed-run log dump reads with component grouping
+- [x] **LOG-03**: Log files are rotated automatically (lumberjack, 5-10MB max, 5 backups) to avoid unbounded disk growth on long download runs
+- [x] **LOG-04**: Structured logs redact PII (bearer tokens, cookies, etp_rt, client_id, private_key) via ReplaceAttr wrapper — no secrets written to disk
+- [x] **LOG-05**: Default log level emits strategic events only (episode start/finish, FFmpeg summary, token refresh, season failure) — not per-segment noise
 
 ### Output Organization
 
@@ -97,15 +97,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ERR-01 | Phase 6 | Pending |
-| ERR-02 | Phase 6 | Pending |
-| ERR-03 | Phase 6 | Pending |
-| ERR-04 | Phase 6 | Pending |
-| LOG-01 | Phase 6 | Pending |
-| LOG-02 | Phase 6 | Pending |
-| LOG-03 | Phase 6 | Pending |
-| LOG-04 | Phase 6 | Pending |
-| LOG-05 | Phase 6 | Pending |
+| ERR-01 | Phase 6 | Complete |
+| ERR-02 | Phase 6 | Complete |
+| ERR-03 | Phase 6 | Complete |
+| ERR-04 | Phase 6 | Complete |
+| LOG-01 | Phase 6 | Complete |
+| LOG-02 | Phase 6 | Complete |
+| LOG-03 | Phase 6 | Complete |
+| LOG-04 | Phase 6 | Complete |
+| LOG-05 | Phase 6 | Complete |
 | OUT-01 | Phase 7 | Pending |
 | OUT-02 | Phase 7 | Pending |
 | OUT-03 | Phase 7 | Pending |
@@ -126,6 +126,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TUI-04 | Phase 10 | Pending |
 
 **Coverage:**
+
 - v1.1 requirements: 27 total
 - Mapped to phases: 27 ✓
 - Unmapped: 0

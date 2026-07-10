@@ -41,7 +41,7 @@ Two deliverables: (A) graceful missing-track handling so partial audio/subtitle 
 
 - **D-13: slog is a SEPARATE plane from `output.Global`.** `--log-level` controls only what goes to `--log-file` (diagnostic). `output.Global` remains controlled by `--json`/`--quiet`/`--debug-manifest` as today. The two coexist (per Out-of-Scope decision: "Replacing Outputter with slog — different planes").
 - **D-14: Default log destination is `./logs/animeheaven.log`.** When `--log-file` is unspecified, the diagnostic slog writes to `./logs/animeheaven.log` by default — diagnostic always available. `--log-file` overrides the path.
-- **D-15: Lumberjack rotation: MaxSize=10MB, MaxBackups=5, MaxAge=0.** ~60MB total disk (active + 5 backups). More history for long-season diagnostics.
+- **D-15: Lumberjack rotation uses MaxSize=10MB, MaxBackups=5, MaxAge=0.** ~60MB total disk (active + 5 backups). More history for long-season diagnostics.
 - **D-16: Add `gopkg.in/natefinch/lumberjack.v2` as a new dependency.** De facto standard for Go log rotation (~500 LOC, zero deps). `slog.Handler` writes to `lumberjack.Writer` which wraps `io.Writer`.
 - **D-17: `log.Global` singleton + `slog.WithGroup` per package.** A `log.Global` slog.Logger set in `main()` (mirrors the accepted `config`/`output` global pattern). Each subsystem (download/drm/media/mux/api) gets a child logger via `slog.WithGroup("subsystem")` at package init.
 - **D-18: Strategic events = `slog.Info`; noise = `slog.Debug`.** Explicit marking:

@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Storage, CLI & Error Handling
-current_phase: 6
-current_phase_name: Track Hardening + Structured Logging
-status: planning
-stopped_at: Phase 6 context gathered
-last_updated: "2026-07-10T15:40:09.015Z"
+current_phase: 7
+current_phase_name: Organized Output + Folder Metadata
+status: executing
+stopped_at: Completed 06-07-PLAN.md
+last_updated: "2026-07-10T21:31:05.480Z"
 last_activity: 2026-07-10
-last_activity_desc: v1.1 milestone roadmap created (Phases 6-10)
+last_activity_desc: Phase 06 complete, transitioned to Phase 7
 progress:
   total_phases: 5
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 7
+  completed_plans: 7
+  percent: 20
 ---
 
 # Project State
@@ -66,7 +66,7 @@ Prior v1.0 Improvement & Optimization Pass shipped 2026-07-10 (Phases 1-5, all c
 | 260709-uw6 | Move config JSON from XDG directory to project root (./config.json) | 2026-07-10 | 7bc96eb | [260709-uw6-move-config-json-from-xdg-directory-to-p](./quick/260709-uw6-move-config-json-from-xdg-directory-to-p/) |
 | 260709-v3w | Fix speed display unit — Bps() used newest instead of oldest sample timestamp | 2026-07-10 | 0167928 | [260709-v3w-fix-speed-display-unit-bps-uses-wrong-ol](./quick/260709-v3w-fix-speed-display-unit-bps-uses-wrong-ol/) |
 
-Last activity: 2026-07-10 - v1.1 milestone roadmap created (Phases 6-10)
+Last activity: 2026-07-10 — Phase 06 complete, transitioned to Phase 7
 
 ## Next Action
 
@@ -77,19 +77,36 @@ v1.1 roadmap ready. Next: `/gsd-plan-phase 6` (Track Hardening + Structured Logg
 See: .planning/PROJECT.md (updated 2026-07-10)
 
 **Core value:** Download any anime episode or full season from Crunchyroll into a single playable MKV file
-**Current focus:** v1.1 Phase 6 — Track Hardening + Structured Logging
+**Current focus:** Phase 06 — track-hardening-structured-logging
 
 ## Current Position
 
-Phase: 6 of 10 (Track Hardening + Structured Logging)
-Plan: —
-Status: Ready to plan
-Last activity: 2026-07-10 — v1.1 roadmap created (Phases 6-10, 27/27 requirements mapped)
+Phase: 7 — Organized Output + Folder Metadata
+Plan: Not started
+Status: Ready to execute
+Last activity: 2026-07-10 — Phase 06 execution started
 
 Progress: [░░░░░░░░░░] 0% (0/5 v1.1 phases)
 
 ## Session
 
-**Last session:** 2026-07-10T15:40:09.007Z
-**Stopped at:** Phase 6 context gathered
-**Resume file:** .planning/phases/06-track-hardening-structured-logging/06-CONTEXT.md
+**Last session:** 2026-07-10T21:27:39.078Z
+**Stopped at:** Completed 06-07-PLAN.md
+**Resume file:** None
+
+## Performance Metrics
+
+| Phase | Plan | Duration | Notes |
+|-------|------|----------|-------|
+| Phase 06 P02 | 15min | 2 tasks | 6 files |
+| Phase 06 P04 | 8min | 3 tasks | 3 files |
+| Phase 06 P06 | 22min | 3 tasks | 5 files |
+| Phase 06 P07 | 3 min | 3 tasks | 3 files |
+
+## Decisions
+
+- [Phase 06]: Used a discardHandler for the diag pre-Init and fallback no-op logger so only the production path constructs slog.TextHandler.
+- [Phase 06]: Kept diagnostic PII redaction centralized in redactAttr via HandlerOptions.ReplaceAttr while handlerWrapper preserves the handler seam.
+- [Phase ?]: [Phase 06]: Kept missing-track skip surfacing on output.Global.Warn only, preserving the existing NDJSON warn contract.
+- [Phase 06]: [Phase 06 P07] resolveLangs consults no env vars - no CRUNCHYROLL_AUDIO_LANG/SUBS_LANG decision exists in Phase 06, unlike the scalar resolveString path.
+- [Phase 06]: [Phase 06 P07] Nil config slice => default fallback; explicit empty config array => empty slice to ERR-03 hard-error guard. Nil-vs-empty distinction preserved and tested.

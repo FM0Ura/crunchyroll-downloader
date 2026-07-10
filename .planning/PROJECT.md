@@ -71,6 +71,10 @@ Download any anime episode or full season from Crunchyroll into a single playabl
 - ✓ Widevine discovery errors surfaced — v1.0
 - ✓ Comprehensive test suite (unit + integration, 9 packages) — v1.0
 - ✓ GitHub Actions CI with lint, vet, test, coverage — v1.0
+- ✓ Graceful missing-track handling (primary hard error, secondary warn+skip) — v1.1 Phase 6 (ERR-01, ERR-02, ERR-03)
+- ✓ Zero-byte mux input validation (single FFmpeg seam) — v1.1 Phase 6 (ERR-04)
+- ✓ Structured diagnostic logging with slog (per-subsystem grouped loggers, lumberjack rotation, PII redaction) — v1.1 Phase 6 (LOG-01..LOG-05)
+- ✓ Config audio/subtitle language arrays feed runtime selection (flag > config > default) — v1.1 Phase 6
 
 ### Active
 
@@ -98,7 +102,7 @@ Shipped v1.0 with 5,525 LOC Go across 6 internal packages + testutil.
 Tech stack: Go 1.25, golang.org/x/sync (errgroup), golang.org/x/term, gowidevine v0.1.3, go-mpd.
 CI: GitHub Actions with go vet, golangci-lint (6 linters), test with -race, coverage reporting.
 
-Current state: 9 test packages, all passing with -race. Zero panic() calls. RAM reduced from 400MB to ~64KB per episode for large downloads.
+Current state: 9 test packages, all passing with -race. Zero panic() calls. RAM reduced from 400MB to ~64KB per episode for large downloads. Phase 6 complete — graceful missing-track handling, configurable PII-redacting slog diagnostics, and config-driven language selection wired into runtime.
 
 ## Constraints
 
@@ -143,4 +147,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-*Last updated: 2026-07-10 after v1.1 milestone initialization*
+*Last updated: 2026-07-10 after Phase 6 completion (Track Hardening + Structured Logging)*
