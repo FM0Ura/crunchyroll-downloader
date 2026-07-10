@@ -251,6 +251,120 @@ func captureMainStdout(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
+func TestResolveLangs(t *testing.T) {
+	// resolveLangs implements the D-01/D-02 precedence: explicit CLI flag
+	// > config array > default. The first element of the returned slice is
+	// the protected primary track, so order must be preserved exactly.
+	tests := []struct {
+		name          string
+		explicitFlags map[string]bool
+		flagName      string
+		flagVal       string
+		configVal     []string
+		defaultVal    []string
+		want          []string
+	}{
+		{
+			name:          "audio explicit flag wins over config",
+			explicitFlags: map[string]bool{"audio-lang": true},
+			flagName:      "audio-lang",
+			flagVal:       "pt-BR,en-US",
+			configVal:     []string{"ja-JP"},
+			defaultVal:    []string{"ja-JP"},
+			want:          []string{"pt-BR", "en-US"},
+		},
+		{
+			name:          "audio non-explicit uses config array in order, en-US primary",
+			explicitFlags: map[string]bool{},
+			flagName:      "audio-lang",
+			flagVal:       "ja-JP",
+			configVal:     []string{"en-US", "ja-JP"},
+			defaultVal:    []string{"ja-JP"},
+			want:          []string{"en-US", "ja-JP"},
+		},
+		{
+			name:          "subs non-explicit uses config array in order, pt-BR primary",
+			explicitFlags: map[string]bool{},
+			flagName:      "subs-lang",
+			flagVal:       "en-US",
+			configVal:     []string{"pt-BR", "en-US"},
+			defaultVal:    []string{"en-US"},
+			want:          []string{"pt-BR", "en-US"},
+		},
+		{
+			name:          "subs explicit flag wins over config",
+			explicitFlags: map[string]bool{"subs-lang": true},
+			flagName:      "subs-lang",
+			flagVal:       "es-419,en-US",
+			configVal:     []string{"pt-BR", "en-US"},
+			defaultVal:    []string{"en-US"},
+			want:          []string{"es-419", "en-US"},
+		},
+		{
+			name:          "audio nil config falls back to default",
+			explicitFlags: map[string]bool{},
+			flagName:      "audio-lang",
+			flagVal:       "ja-JP",
+			configVal:     nil,
+			defaultVal:    []string{"ja-JP"},
+			want:          []string{"ja-JP"},
+		},
+		{
+			name:          "subs nil config falls back to default",
+			explicitFlags: map[string]bool{},
+			flagName:      "subs-lang",
+			flagVal:       "en-US",
+			configVal:     nil,
+			defaultVal:    []string{"en-US"},
+			want:          []string{"en-US"},
+		},
+		{
+			name:          "audio explicit empty CLI value yields nil slice (ERR-03 hard-error path)",
+			explicitFlags: map[string]bool{"audio-lang": true},
+			flagName:      "audio-lang",
+			flagVal:       "",
+			configVal:     []string{"ja-JP"},
+			defaultVal:    []string{"ja-JP"},
+			want:          nil,
+		},
+		{
+			name:          "audio non-explicit with explicit empty config array yields empty slice (ERR-03 hard-error path)",
+			explicitFlags: map[string]bool{},
+			flagName:      "audio-lang",
+			flagVal:       "ja-JP",
+			configVal:     []string{},
+			defaultVal:    []string{"ja-JP"},
+			want:          []string{},
+		},
+		{
+			name:          "subs non-explicit with explicit empty config array yields empty slice",
+			explicitFlags: map[string]bool{},
+			flagName:      "subs-lang",
+			flagVal:       "en-US",
+			configVal:     []string{},
+			defaultVal:    []string{"en-US"},
+			want:          []string{},
+		},
+		{
+			name:          "audio non-explicit preserves multi-element config order with three locales",
+			explicitFlags: map[string]bool{},
+			flagName:      "audio-lang",
+			flagVal:       "ja-JP",
+			configVal:     []string{"en-US", "ja-JP", "pt-BR"},
+			defaultVal:    []string{"ja-JP"},
+			want:          []string{"en-US", "ja-JP", "pt-BR"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveLangs(tt.explicitFlags, tt.flagName, tt.flagVal, tt.configVal, tt.defaultVal)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("resolveLangs(%q) = %v, want %v", tt.flagName, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestParseLangs(t *testing.T) {
 	tests := []struct {
 		name  string
