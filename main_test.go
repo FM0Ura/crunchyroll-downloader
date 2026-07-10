@@ -273,73 +273,127 @@ func TestParseLangs(t *testing.T) {
 }
 
 func TestResolveString(t *testing.T) {
-	configVal := "config-value"
-	defaultVal := "default"
-	flagVal := "flag-value"
-
 	tests := []struct {
 		name          string
 		explicitFlags map[string]bool
 		flagName      string
 		flagVal       string
-		envVal        string
+		envName       string
+		envVal        *string
 		configVal     *string
 		defaultVal    string
 		want          string
 	}{
 		{
-			name:          "explicit flag wins",
-			explicitFlags: map[string]bool{"output-dir": true},
-			flagName:      "output-dir",
-			flagVal:       flagVal,
-			envVal:        "",
-			configVal:     &configVal,
-			defaultVal:    defaultVal,
-			want:          flagVal,
+			name:          "log-level explicit flag wins",
+			explicitFlags: map[string]bool{"log-level": true},
+			flagName:      "log-level",
+			flagVal:       "warn",
+			envName:       "CRUNCHYROLL_LOG_LEVEL",
+			envVal:        stringPtr("debug"),
+			configVal:     stringPtr("info"),
+			defaultVal:    "info",
+			want:          "warn",
 		},
 		{
-			name:          "env var when no flag",
+			name:          "log-level env over config",
 			explicitFlags: map[string]bool{},
-			flagName:      "output-dir",
+			flagName:      "log-level",
 			flagVal:       "",
-			envVal:        "env-value",
-			configVal:     &configVal,
-			defaultVal:    defaultVal,
-			want:          "env-value",
+			envName:       "CRUNCHYROLL_LOG_LEVEL",
+			envVal:        stringPtr("debug"),
+			configVal:     stringPtr("info"),
+			defaultVal:    "info",
+			want:          "debug",
 		},
 		{
-			name:          "config when no flag or env",
+			name:          "log-level config over default",
 			explicitFlags: map[string]bool{},
-			flagName:      "output-dir",
+			flagName:      "log-level",
 			flagVal:       "",
-			envVal:        "",
-			configVal:     &configVal,
-			defaultVal:    defaultVal,
-			want:          configVal,
+			envName:       "CRUNCHYROLL_LOG_LEVEL",
+			configVal:     stringPtr("error"),
+			defaultVal:    "info",
+			want:          "error",
 		},
 		{
-			name:          "default when nothing is set",
+			name:          "log-level default last",
 			explicitFlags: map[string]bool{},
-			flagName:      "output-dir",
+			flagName:      "log-level",
 			flagVal:       "",
-			envVal:        "",
+			envName:       "CRUNCHYROLL_LOG_LEVEL",
 			configVal:     nil,
-			defaultVal:    defaultVal,
-			want:          defaultVal,
+			defaultVal:    "info",
+			want:          "info",
+		},
+		{
+			name:          "log-file explicit flag wins",
+			explicitFlags: map[string]bool{"log-file": true},
+			flagName:      "log-file",
+			flagVal:       "/tmp/flag.log",
+			envName:       "CRUNCHYROLL_LOG_FILE",
+			envVal:        stringPtr("/tmp/env.log"),
+			configVal:     stringPtr("/tmp/config.log"),
+			defaultVal:    "./logs/animeheaven.log",
+			want:          "/tmp/flag.log",
+		},
+		{
+			name:          "log-file env over config",
+			explicitFlags: map[string]bool{},
+			flagName:      "log-file",
+			flagVal:       "",
+			envName:       "CRUNCHYROLL_LOG_FILE",
+			envVal:        stringPtr("/tmp/env.log"),
+			configVal:     stringPtr("/tmp/config.log"),
+			defaultVal:    "./logs/animeheaven.log",
+			want:          "/tmp/env.log",
+		},
+		{
+			name:          "log-file config over default",
+			explicitFlags: map[string]bool{},
+			flagName:      "log-file",
+			flagVal:       "",
+			envName:       "CRUNCHYROLL_LOG_FILE",
+			configVal:     stringPtr("/tmp/config.log"),
+			defaultVal:    "./logs/animeheaven.log",
+			want:          "/tmp/config.log",
+		},
+		{
+			name:          "log-file default last",
+			explicitFlags: map[string]bool{},
+			flagName:      "log-file",
+			flagVal:       "",
+			envName:       "CRUNCHYROLL_LOG_FILE",
+			configVal:     nil,
+			defaultVal:    "./logs/animeheaven.log",
+			want:          "./logs/animeheaven.log",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.envVal != "" {
-				t.Setenv("TEST_ENV_"+tt.flagName, tt.envVal)
+			origEnv, hadEnv := os.LookupEnv(tt.envName)
+			t.Cleanup(func() {
+				if hadEnv {
+					os.Setenv(tt.envName, origEnv)
+				} else {
+					os.Unsetenv(tt.envName)
+				}
+			})
+			if tt.envVal != nil {
+				os.Setenv(tt.envName, *tt.envVal)
+			} else {
+				os.Unsetenv(tt.envName)
 			}
-			envName := "TEST_ENV_" + tt.flagName
-			got := resolveString(tt.explicitFlags, tt.flagName, tt.flagVal, envName, tt.configVal, tt.defaultVal)
+			got := resolveString(tt.explicitFlags, tt.flagName, tt.flagVal, tt.envName, tt.configVal, tt.defaultVal)
 			if got != tt.want {
 				t.Fatalf("resolveString() = %q, want %q", got, tt.want)
 			}
 		})
 	}
+}
+
+func stringPtr(s string) *string {
+	return &s
 }
 
 func TestIsAllNilConfig(t *testing.T) {
