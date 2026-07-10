@@ -14,8 +14,8 @@ import (
 	"crunchyroll-downloader/internal/api"
 	"crunchyroll-downloader/internal/drm"
 	"crunchyroll-downloader/internal/media"
-	"crunchyroll-downloader/internal/output"
 	"crunchyroll-downloader/internal/mux"
+	"crunchyroll-downloader/internal/output"
 	"github.com/unki2aut/go-mpd"
 	"golang.org/x/sync/errgroup"
 )
@@ -91,12 +91,21 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 		contentId string
 	}
 	var versions []audioVersion
-	for _, locale := range audioLangs {
+	var skippedTracks []string
+	for i, locale := range audioLangs {
 		guid, ok := guidByLocale[locale]
 		if !ok {
-			return fmt.Errorf("audio locale %s is not available for episode %v", locale, info.EpisodeMetadata.EpisodeNumber)
+			if i == 0 {
+				return fmt.Errorf("primary audio locale %s not available for episode %d", locale, info.EpisodeMetadata.EpisodeNumber)
+			}
+			output.Global.Warn("Skipping %s audio: not available for episode %d", locale, info.EpisodeMetadata.EpisodeNumber)
+			skippedTracks = append(skippedTracks, locale+" dub")
+			continue
 		}
 		versions = append(versions, audioVersion{locale: locale, contentId: guid})
+	}
+	if len(versions) == 0 {
+		return fmt.Errorf("no audio tracks available for episode %d", info.EpisodeMetadata.EpisodeNumber)
 	}
 
 	output.Global.Info("[Episode %d/%d] %s (S%02dE%02d) ...", info.EpisodeMetadata.EpisodeNumber, totalEpisodes, info.Title, info.EpisodeMetadata.SeasonNumber, info.EpisodeMetadata.EpisodeNumber)
