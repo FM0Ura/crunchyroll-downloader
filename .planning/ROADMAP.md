@@ -43,7 +43,13 @@
   3. Muxer rejects empty or mismatched input tracks before invoking FFmpeg, so an episode's dubs never get mislabeled by positional -map indices
   4. User can set `--log-level` and `--log-file` and observe structured diagnostic logs scoped per subsystem (download/drm/media/mux/api) with strategic events only (episode start/finish, FFmpeg summary, token refresh, season failure)
   5. User's log file auto-rotates (5-10MB, 3 backups) and never leaks bearer tokens, cookies, etp_rt, client_id, or private_key
-**Plans**: TBD
+**Plans**: 6 plans (Wave 1: 06-01, 06-02, 06-04, 06-05 parallel; Wave 2: 06-03; Wave 3: 06-06)
+- [ ] 06-01-PLAN.md — Config schema migration (AudioLang/SubsLang arrays + LogLevel/LogFile pointer fields, D-02/D-19)
+- [ ] 06-02-PLAN.md — New internal/diag package (Global/Init/parseLevel/subsystem loggers + lumberjack rotation + redactingHandler, D-13..D-23)
+- [ ] 06-03-PLAN.md — main.go --log-level/--log-file flags + resolveString + diag.Init wiring (D-19 + D-18 init order)
+- [ ] 06-04-PLAN.md — Track hardening in download.Episode (primary hard-error / secondary warn+skip / partial-episode marker, D-01..D-09)
+- [ ] 06-05-PLAN.md — Mux os.Stat input validation in MergeEverything (D-10..D-12, ERR-04)
+- [ ] 06-06-PLAN.md — Strategic slog instrumentation across download/mux/api subsystems (D-18, LOG-05)
 
 ### Phase 7: Organized Output + Folder Metadata
 **Goal**: Users get Jellyfin/Kodi-friendly organized download folders with correct NFO metadata and fetched artwork
@@ -104,7 +110,7 @@ Phases execute in numeric order continuing from v1.0: 6 → 7 → 8 → 9 → 10
 | 3. Usability — Configuration & Validation | v1.0 | 5/5 | Complete | 2026-07-09 |
 | 4. UX — Progress & Output | v1.0 | 3/3 | Complete | 2026-07-10 |
 | 5. Testing & Quality | v1.0 | 2/2 | Complete | 2026-07-10 |
-| 6. Track Hardening + Structured Logging | v1.1 | 0/TBD | Not started | - |
+| 6. Track Hardening + Structured Logging | v1.1 | 0/6 | Planning complete | - |
 | 7. Organized Output + Folder Metadata | v1.1 | 0/TBD | Not started | - |
 | 8. Compression Presets | v1.1 | 0/TBD | Not started | - |
 | 9. Output Reporter Seam | v1.1 | 0/TBD | Not started | - |
