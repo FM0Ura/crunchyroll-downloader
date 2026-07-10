@@ -1,35 +1,37 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: Improvement & Optimization Pass
-status: Archived
-stopped_at: Milestone v1.0 complete
-last_updated: "2026-07-10T14:00:00.000Z"
+milestone: v1.1
+milestone_name: Storage, CLI & Error Handling
+current_phase: 6
+current_phase_name: Track Hardening + Structured Logging
+status: planning
+stopped_at: Phase 6 context gathered
+last_updated: "2026-07-10T15:40:09.015Z"
 last_activity: 2026-07-10
+last_activity_desc: v1.1 milestone roadmap created (Phases 6-10)
 progress:
   total_phases: 5
-  completed_phases: 5
-  total_plans: 18
-  completed_plans: 18
-  percent: 100
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Current Milestone
 
-v1.0 Improvement & Optimization Pass — shipped 2026-07-10. All 5 phases complete. See `.planning/milestones/` for archives.
+🚧 **v1.1 Storage, CLI & Error Handling** — Phases 6-10. Roadmap created 2026-07-10.
+Prior v1.0 Improvement & Optimization Pass shipped 2026-07-10 (Phases 1-5, all complete). See `.planning/milestones/` for archives.
 
 ## Planning Artifacts
 
 | Document | Status | Description |
 |----------|--------|-------------|
-| PROJECT.md | ✓ Updated | v1.0 shipped, requirements validated, next goals listed |
-| ROADMAP.md | ✓ Archived | v1.0 collapsed to milestone grouping |
-| REQUIREMENTS.md | ✓ Archived | All 37 v1 requirements complete, archived to milestones/ |
-| milestones/v1.0-ROADMAP.md | ✓ Created | Full milestone archive |
-| milestones/v1.0-REQUIREMENTS.md | ✓ Created | Requirements archive with outcomes |
-| v1.0-MILESTONE-AUDIT.md | ✓ Created | Milestone audit — passed |
+| PROJECT.md | ✓ Updated | v1.1 milestone goal + active requirements set |
+| ROADMAP.md | ✓ Updated | v1.0 archived; v1.1 Phases 6-10 appended |
+| REQUIREMENTS.md | ✓ Updated | 27 v1.1 requirements defined + traceability filled (27/27 mapped) |
+| research/SUMMARY.md | ✓ Created | v1.1 research (HIGH confidence), 6-phase structure backing roadmap |
 | STATE.md | ✓ Updated | This file |
 
 ## Completed Plans
@@ -64,15 +66,30 @@ v1.0 Improvement & Optimization Pass — shipped 2026-07-10. All 5 phases comple
 | 260709-uw6 | Move config JSON from XDG directory to project root (./config.json) | 2026-07-10 | 7bc96eb | [260709-uw6-move-config-json-from-xdg-directory-to-p](./quick/260709-uw6-move-config-json-from-xdg-directory-to-p/) |
 | 260709-v3w | Fix speed display unit — Bps() used newest instead of oldest sample timestamp | 2026-07-10 | 0167928 | [260709-v3w-fix-speed-display-unit-bps-uses-wrong-ol](./quick/260709-v3w-fix-speed-display-unit-bps-uses-wrong-ol/) |
 
-Last activity: 2026-07-10 - Milestone v1.0 shipped and archived
+Last activity: 2026-07-10 - v1.1 milestone roadmap created (Phases 6-10)
 
 ## Next Action
 
-Milestone v1.0 shipped. Ready for next milestone planning: `/gsd-new-milestone`
+v1.1 roadmap ready. Next: `/gsd-plan-phase 6` (Track Hardening + Structured Logging).
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-07-10)
 
 **Core value:** Download any anime episode or full season from Crunchyroll into a single playable MKV file
-**Current focus:** Planning next milestone
+**Current focus:** v1.1 Phase 6 — Track Hardening + Structured Logging
+
+## Current Position
+
+Phase: 6 of 10 (Track Hardening + Structured Logging)
+Plan: —
+Status: Ready to plan
+Last activity: 2026-07-10 — v1.1 roadmap created (Phases 6-10, 27/27 requirements mapped)
+
+Progress: [░░░░░░░░░░] 0% (0/5 v1.1 phases)
+
+## Session
+
+**Last session:** 2026-07-10T15:40:09.007Z
+**Stopped at:** Phase 6 context gathered
+**Resume file:** .planning/phases/06-track-hardening-structured-logging/06-CONTEXT.md
