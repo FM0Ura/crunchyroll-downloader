@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"crunchyroll-downloader/internal/diag"
 	"crunchyroll-downloader/internal/output"
 )
 
@@ -106,6 +107,9 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 			return nil, fmt.Errorf("refreshing token: %w", err)
 		}
 		c.token = token
+		if diag.ApiLogger != nil {
+			diag.ApiLogger.Info("token refreshed", "status", "401-recovered")
+		}
 
 		retryReq := req.Clone(req.Context())
 		if req.GetBody != nil {
