@@ -39,12 +39,12 @@ func TestMergeEverythingWarnsButSucceedsWhenCleanupFails(t *testing.T) {
 	restoreFFmpegCommand(t, "0", "")
 
 	dir := t.TempDir()
-	missingVideoFile := filepath.Join(dir, "missing-video.mp4")
+	absentOptionalVideoFile := ""
 	audioFile := writeTempFile(t, dir, "audio.mp3")
 	outputFile := filepath.Join(dir, "output.mkv")
 
 	stdout := captureStdout(t, func() {
-		err := MergeEverything(context.Background(), missingVideoFile, []MediaTrack{{File: audioFile, Locale: "ja-JP"}}, nil, outputFile, testEpisodeInfo())
+		err := MergeEverything(context.Background(), absentOptionalVideoFile, []MediaTrack{{File: audioFile, Locale: "ja-JP"}}, nil, outputFile, testEpisodeInfo())
 		if err != nil {
 			t.Fatalf("MergeEverything() error = %v, want nil despite cleanup warning", err)
 		}
@@ -75,6 +75,68 @@ func TestMergeEverythingKillsFFmpegAndRemovesPartialOutputOnCancellation(t *test
 	}
 }
 
+func TestMergeEverythingRejectsEmptyVideo(t *testing.T) {
+	var invoked bool
+	restoreFFmpegCommandSentinel(t, &invoked)
+
+	dir := t.TempDir()
+	videoFile := writeEmptyFile(t, dir, "video.mp4")
+	audioFile := writeTempFile(t, dir, "audio.mp3")
+	outputFile := filepath.Join(dir, "output.mkv")
+
+	err := MergeEverything(context.Background(), videoFile, []MediaTrack{{File: audioFile, Locale: "ja-JP"}}, nil, outputFile, testEpisodeInfo())
+	if err == nil {
+		t.Fatal("MergeEverything() error = nil, want empty input error")
+	}
+	if !strings.Contains(err.Error(), "is empty (0 bytes)") {
+		t.Fatalf("MergeEverything() error = %q, want empty input error", err)
+	}
+	if invoked {
+		t.Fatal("ffmpeg was invoked on empty video input")
+	}
+}
+
+func TestMergeEverythingRejectsEmptyAudioTrack(t *testing.T) {
+	var invoked bool
+	restoreFFmpegCommandSentinel(t, &invoked)
+
+	dir := t.TempDir()
+	videoFile := writeTempFile(t, dir, "video.mp4")
+	audioFile := writeEmptyFile(t, dir, "audio.mp3")
+	outputFile := filepath.Join(dir, "output.mkv")
+
+	err := MergeEverything(context.Background(), videoFile, []MediaTrack{{File: audioFile, Locale: "ja-JP"}}, nil, outputFile, testEpisodeInfo())
+	if err == nil {
+		t.Fatal("MergeEverything() error = nil, want empty input error")
+	}
+	if !strings.Contains(err.Error(), "is empty (0 bytes)") {
+		t.Fatalf("MergeEverything() error = %q, want empty input error", err)
+	}
+	if invoked {
+		t.Fatal("ffmpeg was invoked on empty audio input")
+	}
+}
+
+func TestMergeEverythingRejectsMissingInput(t *testing.T) {
+	var invoked bool
+	restoreFFmpegCommandSentinel(t, &invoked)
+
+	dir := t.TempDir()
+	videoFile := filepath.Join(dir, "missing-video.mp4")
+	outputFile := filepath.Join(dir, "output.mkv")
+
+	err := MergeEverything(context.Background(), videoFile, nil, nil, outputFile, testEpisodeInfo())
+	if err == nil {
+		t.Fatal("MergeEverything() error = nil, want missing input error")
+	}
+	if !strings.Contains(err.Error(), "mux input") {
+		t.Fatalf("MergeEverything() error = %q, want mux input error", err)
+	}
+	if invoked {
+		t.Fatal("ffmpeg was invoked on missing input")
+	}
+}
+
 func restoreFFmpegCommand(t *testing.T, exitCode, stderr string) {
 	t.Helper()
 	original := ffmpegCommand
@@ -88,6 +150,19 @@ func restoreFFmpegCommand(t *testing.T, exitCode, stderr string) {
 			"GO_HELPER_STDERR="+stderr,
 		)
 		return cmd
+	}
+	t.Cleanup(func() {
+		ffmpegCommand = original
+	})
+}
+
+func restoreFFmpegCommandSentinel(t *testing.T, invoked *bool) {
+	t.Helper()
+	original := ffmpegCommand
+	ffmpegCommand = func(ctx context.Context, command string, args ...string) *exec.Cmd {
+		*invoked = true
+		t.Fatal("ffmpeg should not be invoked on invalid mux input")
+		return exec.CommandContext(ctx, os.Args[0], "-test.run=TestHelperProcess")
 	}
 	t.Cleanup(func() {
 		ffmpegCommand = original
@@ -147,6 +222,15 @@ func writeTempFile(t *testing.T, dir, name string) string {
 	path := filepath.Join(dir, name)
 	if err := os.WriteFile(path, []byte("test"), 0644); err != nil {
 		t.Fatalf("write temp file: %v", err)
+	}
+	return path
+}
+
+func writeEmptyFile(t *testing.T, dir, name string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte{}, 0644); err != nil {
+		t.Fatalf("write empty file: %v", err)
 	}
 	return path
 }
