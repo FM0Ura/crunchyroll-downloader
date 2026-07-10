@@ -8,6 +8,7 @@ require (
 	github.com/unki2aut/go-mpd v0.0.0-20250515065241-e261b43d6523
 	golang.org/x/sync v0.22.0
 	golang.org/x/term v0.45.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
