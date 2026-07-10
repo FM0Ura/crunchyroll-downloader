@@ -147,14 +147,16 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 
 	output.Global.Info("Audio locales: %s | Subtitle locales: %s", strings.Join(audioLangs, ", "), strings.Join(subsLangs, ", "))
 
-	for _, locale := range subsLangs {
-		if firstEpisode.Subtitles[locale] == nil {
-			return fmt.Errorf("subtitle locale %s is not available for episode %v", locale, info.EpisodeMetadata.EpisodeNumber)
-		}
-	}
-
 	var subTracks []mux.MediaTrack
-	for _, locale := range subsLangs {
+	for j, locale := range subsLangs {
+		if firstEpisode.Subtitles[locale] == nil {
+			if j == 0 {
+				return fmt.Errorf("primary subtitle locale %s not available for episode %d", locale, info.EpisodeMetadata.EpisodeNumber)
+			}
+			output.Global.Warn("Skipping %s subtitles: not available for episode %d", locale, info.EpisodeMetadata.EpisodeNumber)
+			skippedTracks = append(skippedTracks, locale+" sub")
+			continue
+		}
 		output.Global.Info("Downloading subtitles for %s...", mux.TrackTitle(locale))
 		file, err := media.DownloadSubs(ctx, client, firstEpisode.Subtitles[locale].URL)
 		if err != nil {
@@ -318,6 +320,10 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 		info.EpisodeMetadata.EpisodeNumber, totalEpisodes, info.Title,
 		output.ANSIGreen, "✓", output.ANSIReset,
 		fileSizeStr, formatDuration(duration))
+	if len(skippedTracks) > 0 {
+		output.Global.Warn("Episode %d downloaded partially: %d track(s) skipped (%s)",
+			info.EpisodeMetadata.EpisodeNumber, len(skippedTracks), strings.Join(skippedTracks, ", "))
+	}
 	return nil
 }
 
