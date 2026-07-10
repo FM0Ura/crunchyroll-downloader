@@ -72,12 +72,17 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 		return fmt.Errorf("creating output directory: %w", err)
 	}
 
-	outputFile := filepath.Join(outputBase, fmt.Sprintf("%s S%02dE%02d - %s [%s].mkv",
+	seasonDir := fmt.Sprintf("Season %02d", info.EpisodeMetadata.SeasonNumber)
+	seasonPath := filepath.Join(outputBase, seasonDir)
+	if err := os.MkdirAll(seasonPath, 0777); err != nil {
+		return fmt.Errorf("creating season directory: %w", err)
+	}
+
+	outputFile := filepath.Join(seasonPath, fmt.Sprintf("%s S%02dE%02d - %s.mkv",
 		cleanSeriesTitle,
 		info.EpisodeMetadata.SeasonNumber,
 		info.EpisodeMetadata.EpisodeNumber,
 		cleanEpisodeTitle,
-		*videoQuality,
 	))
 
 	if _, err := os.Stat(outputFile); err == nil {
