@@ -31,6 +31,26 @@ func MergeEverything(ctx context.Context, videoFile string, audioTracks, subTrac
 		ctx = context.Background()
 	}
 
+	inputs := []string{videoFile}
+	for _, audio := range audioTracks {
+		inputs = append(inputs, audio.File)
+	}
+	for _, sub := range subTracks {
+		inputs = append(inputs, sub.File)
+	}
+	for _, path := range inputs {
+		if path == "" {
+			continue
+		}
+		fi, err := os.Stat(path)
+		if err != nil {
+			return fmt.Errorf("mux input %s: %w", path, err)
+		}
+		if fi.Size() == 0 {
+			return fmt.Errorf("mux input %s is empty (0 bytes): refusing to invoke FFmpeg", path)
+		}
+	}
+
 	args := []string{"-i", videoFile}
 	for _, audio := range audioTracks {
 		args = append(args, "-i", audio.File)
