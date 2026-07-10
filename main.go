@@ -14,6 +14,7 @@ import (
 
 	"crunchyroll-downloader/internal/api"
 	"crunchyroll-downloader/internal/config"
+	"crunchyroll-downloader/internal/diag"
 	"crunchyroll-downloader/internal/download"
 	"crunchyroll-downloader/internal/drm"
 	"crunchyroll-downloader/internal/output"
@@ -32,6 +33,8 @@ var (
 	widevineDev   = flag.String("widevine-device", "", "Path to .wvd file or directory with client_id.bin + private_key.pem")
 	jsonMode      = flag.Bool("json", false, "Output progress as NDJSON")
 	quietMode     = flag.Bool("quiet", false, "Suppress progress output (errors still print)")
+	logLevel      = flag.String("log-level", "info", "Diagnostic log level (debug|info|warn|error)")
+	logFile       = flag.String("log-file", "", "Diagnostic log file path (default ./logs/animeheaven.log)")
 )
 
 func parseLangs(s string) []string {
@@ -217,7 +220,7 @@ func isAllNilConfig(cfg *config.Config) bool {
 		cfg.Workers == nil &&
 		cfg.OutputDir == nil &&
 		cfg.EtpRt == nil &&
-		cfg.WidevineDevice == nil
+		cfg.WidevineDevice == nil && cfg.LogLevel == nil && cfg.LogFile == nil
 }
 
 // resolveString resolves a string value through the precedence hierarchy:
@@ -311,6 +314,9 @@ func main() {
 	// Resolve precedence: CLI flag > env var > config file > default
 	resolvedEtpRt := resolveEtpRt(explicitFlags, *etpRt, cfg.EtpRt)
 	resolvedOutputDir := resolveString(explicitFlags, "output-dir", *outputDir, "OUTPUT_DIR", cfg.OutputDir, "")
+	resolvedLogLevel := resolveString(explicitFlags, "log-level", *logLevel, "CRUNCHYROLL_LOG_LEVEL", cfg.LogLevel, "info")
+	resolvedLogFile := resolveString(explicitFlags, "log-file", *logFile, "CRUNCHYROLL_LOG_FILE", cfg.LogFile, "./logs/animeheaven.log")
+	diag.Init(diag.ParseLevel(resolvedLogLevel), resolvedLogFile)
 
 	// Validate FFmpeg availability before any download (D-18, D-19)
 	if err := checkFFmpeg(); err != nil {
