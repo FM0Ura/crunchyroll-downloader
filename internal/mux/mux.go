@@ -8,6 +8,7 @@ import (
 	"os/exec"
 
 	"crunchyroll-downloader/internal/api"
+	"crunchyroll-downloader/internal/diag"
 	loc "crunchyroll-downloader/internal/locale"
 	"crunchyroll-downloader/internal/output"
 )
@@ -117,6 +118,9 @@ func MergeEverything(ctx context.Context, videoFile string, audioTracks, subTrac
 			return fmt.Errorf("ffmpeg failed: %w: %s; cleanup output: %v", err, stderr.String(), cleanupErr)
 		}
 		return fmt.Errorf("ffmpeg failed: %w: %s", err, stderr.String())
+	}
+	if diag.MuxLogger != nil {
+		diag.MuxLogger.Info("ffmpeg finished", "stderr", stderr.String())
 	}
 
 	warnRemove(videoFile)
