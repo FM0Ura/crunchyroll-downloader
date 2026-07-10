@@ -1,7 +1,9 @@
 package download
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +11,9 @@ import (
 	"time"
 
 	"crunchyroll-downloader/internal/api"
+	"crunchyroll-downloader/internal/mux"
+	"github.com/iyear/gowidevine"
+	"github.com/unki2aut/go-mpd"
 )
 
 func TestEpisodeReturnsErrorForUnavailableAudioLocale(t *testing.T) {
@@ -30,8 +35,99 @@ func TestEpisodeReturnsErrorForUnavailableAudioLocale(t *testing.T) {
 	if err == nil {
 		t.Fatal("Episode() error = nil, want unavailable audio locale error")
 	}
-	if !strings.Contains(err.Error(), "audio locale en-US is not available") {
-		t.Fatalf("Episode() error = %q, want unavailable audio locale message", err)
+	if !strings.Contains(err.Error(), "primary audio locale en-US not available") {
+		t.Fatalf("Episode() error = %q, want primary unavailable audio locale message", err)
+	}
+}
+
+func TestEpisodeSkipsUnavailableSecondaryAudioLocale(t *testing.T) {
+	t.Chdir(t.TempDir())
+	restoreEpisodeTestSeams(t, map[string]*api.Subtitle{})
+
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	info := testEpisodeInfoWithLocales("ja-JP", nil)
+	client := api.NewTestClient(nil, "https://example.com", "test-token")
+
+	stdout := captureEpisodeStdout(t, func() {
+		err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP", "en-US"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+		if err != nil {
+			t.Fatalf("Episode() error = %v, want nil with secondary audio skipped", err)
+		}
+	})
+
+	if !strings.Contains(stdout, "Skipping en-US audio") {
+		t.Fatalf("Episode() stdout = %q, want secondary audio skip warning", stdout)
+	}
+}
+
+func TestEpisodeReturnsPrimaryAudioErrorBeforePostLoopGuard(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	info := testEpisodeInfoWithLocales("ja-JP", nil)
+
+	err := Episode(context.Background(), nil, "content-id", info, []string{"en-US", "es-419"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+	if err == nil {
+		t.Fatal("Episode() error = nil, want primary audio locale error")
+	}
+	if !strings.Contains(err.Error(), "primary audio locale "+"en-US not available") {
+		t.Fatalf("Episode() error = %q, want primary audio locale message", err)
+	}
+	if strings.Contains(err.Error(), "no audio tracks "+"available") {
+		t.Fatalf("Episode() error = %q, want primary branch before post-loop guard", err)
+	}
+}
+
+func TestEpisodeWarnsWhenDownloadedPartially(t *testing.T) {
+	t.Chdir(t.TempDir())
+	restoreEpisodeTestSeams(t, map[string]*api.Subtitle{
+		"en-US": {Language: "en-US", URL: "https://example.com/en-US.ass"},
+	})
+
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	info := testEpisodeInfoWithLocales("ja-JP", nil)
+	client := api.NewTestClient(nil, "https://example.com", "test-token")
+
+	stdout := captureEpisodeStdout(t, func() {
+		err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP", "en-US"}, []string{"en-US", "es-419"}, &videoQuality, &audioQuality, 2, "", 1)
+		if err != nil {
+			t.Fatalf("Episode() error = %v, want nil with secondary subtitle skipped", err)
+		}
+	})
+
+	if !strings.Contains(stdout, "✓") {
+		t.Fatalf("Episode() stdout = %q, want success line", stdout)
+	}
+	if !strings.Contains(stdout, "downloaded partially") || !strings.Contains(stdout, "es-419 sub") {
+		t.Fatalf("Episode() stdout = %q, want partial warning with skipped subtitle", stdout)
+	}
+}
+
+func TestEpisodeReturnsErrorWhenAudioLangsEmptyBeforeMux(t *testing.T) {
+	t.Chdir(t.TempDir())
+	muxCalled := false
+	restoreEpisodeTestSeams(t, map[string]*api.Subtitle{})
+	episodeMerge = func(context.Context, string, []mux.MediaTrack, []mux.MediaTrack, string, *api.EpisodeInfo) error {
+		muxCalled = true
+		return nil
+	}
+
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	info := testEpisodeInfoWithLocales("ja-JP", nil)
+
+	err := Episode(context.Background(), nil, "content-id", info, []string{}, nil, &videoQuality, &audioQuality, 2, "", 1)
+	if err == nil {
+		t.Fatal("Episode() error = nil, want empty audio hard error")
+	}
+	if !strings.Contains(err.Error(), "no audio tracks available") {
+		t.Fatalf("Episode() error = %q, want empty audio hard-error message", err)
+	}
+	if muxCalled {
+		t.Fatal("Episode() invoked mux despite empty audioLangs hard error")
 	}
 }
 
@@ -134,7 +230,7 @@ func TestEpisodeParallelAudioZeroVersions(t *testing.T) {
 	if err == nil {
 		t.Fatal("Episode() error = nil, want audio locale unavailable error")
 	}
-	if !strings.Contains(err.Error(), "audio locale fr-FR is not available") {
+	if !strings.Contains(err.Error(), "primary audio locale fr-FR not available") {
 		t.Fatalf("Episode() error = %q, want unavailable audio locale message", err)
 	}
 }
@@ -252,4 +348,136 @@ func writeEpisodeTestFile(t *testing.T, dir, name string) string {
 		t.Fatalf("WriteFile(%s): %v", path, err)
 	}
 	return path
+}
+
+func testEpisodeInfoWithLocales(primary string, versions []*api.DubVersion) *api.EpisodeInfo {
+	return &api.EpisodeInfo{
+		EpisodeMetadata: api.EpisodeMetadata{
+			SeriesTitle:   "Test Series",
+			SeasonNumber:  1,
+			EpisodeNumber: 1,
+			AudioLocale:   primary,
+			Versions:      versions,
+		},
+		Title: "Test Episode",
+	}
+}
+
+func restoreEpisodeTestSeams(t *testing.T, subtitles map[string]*api.Subtitle) {
+	t.Helper()
+	origGetEpisode := episodeGetEpisode
+	origDeleteStream := episodeDeleteStream
+	origFetchManifest := episodeFetchManifest
+	origParseManifest := episodeParseManifest
+	origGetPssh := episodeGetPssh
+	origGetLicense := episodeGetLicense
+	origDownloadParts := episodeDownloadParts
+	origDownloadSubs := episodeDownloadSubs
+	origMerge := episodeMerge
+
+	episodeGetEpisode = func(context.Context, *api.Client, string) (*api.Episode, error) {
+		return &api.Episode{
+			ManifestURL: "https://example.com/manifest.mpd",
+			Subtitles:   subtitles,
+			Token:       "stream-token",
+		}, nil
+	}
+	episodeDeleteStream = func(context.Context, *api.Client, string, string) (bool, error) {
+		return true, nil
+	}
+	episodeFetchManifest = func(context.Context, *api.Client, string) ([]byte, error) {
+		return []byte("stub-manifest"), nil
+	}
+	episodeParseManifest = func([]byte) (*mpd.MPD, error) {
+		return testEpisodeManifest(), nil
+	}
+	pssh := "cHNzaA=="
+	episodeGetPssh = func(*mpd.MPD) *string {
+		return &pssh
+	}
+	episodeGetLicense = func(context.Context, *api.Client, string, string, string) ([]*widevine.Key, error) {
+		return nil, nil
+	}
+	episodeDownloadParts = func(_ context.Context, _ *api.Client, _, _ *string, _ *mpd.AdaptationSet, _ []*widevine.Key, _ int, label string) (string, error) {
+		return writeEpisodeTestFile(t, t.TempDir(), sanitizeFilename(label)+".bin"), nil
+	}
+	episodeDownloadSubs = func(context.Context, *api.Client, string) (string, error) {
+		return writeEpisodeTestFile(t, t.TempDir(), "subtitle.ass"), nil
+	}
+	episodeMerge = func(_ context.Context, _ string, _ []mux.MediaTrack, _ []mux.MediaTrack, outputFile string, _ *api.EpisodeInfo) error {
+		return os.WriteFile(outputFile, []byte("mkv"), 0o600)
+	}
+
+	t.Cleanup(func() {
+		episodeGetEpisode = origGetEpisode
+		episodeDeleteStream = origDeleteStream
+		episodeFetchManifest = origFetchManifest
+		episodeParseManifest = origParseManifest
+		episodeGetPssh = origGetPssh
+		episodeGetLicense = origGetLicense
+		episodeDownloadParts = origDownloadParts
+		episodeDownloadSubs = origDownloadSubs
+		episodeMerge = origMerge
+	})
+}
+
+func testEpisodeManifest() *mpd.MPD {
+	videoID := "video-1080"
+	videoHeight := uint64(1080)
+	audioID := "audio-192"
+	audioBandwidth := uint64(192000)
+
+	return &mpd.MPD{
+		Period: []*mpd.Period{
+			{
+				AdaptationSets: []*mpd.AdaptationSet{
+					{
+						Representations: []mpd.Representation{
+							{
+								ID:     &videoID,
+								Height: &videoHeight,
+								BaseURL: []*mpd.BaseURL{
+									{Value: "https://example.com/video/"},
+								},
+							},
+						},
+					},
+					{
+						Representations: []mpd.Representation{
+							{
+								ID:        &audioID,
+								Bandwidth: &audioBandwidth,
+								BaseURL: []*mpd.BaseURL{
+									{Value: "https://example.com/audio/"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func captureEpisodeStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	original := os.Stdout
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stdout pipe: %v", err)
+	}
+	os.Stdout = writePipe
+
+	fn()
+
+	if err := writePipe.Close(); err != nil {
+		t.Fatalf("close stdout pipe: %v", err)
+	}
+	os.Stdout = original
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, readPipe); err != nil {
+		t.Fatalf("read stdout pipe: %v", err)
+	}
+	return buf.String()
 }

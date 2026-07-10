@@ -16,11 +16,34 @@ import (
 	"crunchyroll-downloader/internal/media"
 	"crunchyroll-downloader/internal/mux"
 	"crunchyroll-downloader/internal/output"
+	"github.com/iyear/gowidevine"
 	"github.com/unki2aut/go-mpd"
 	"golang.org/x/sync/errgroup"
 )
 
 var multiUnderscore = regexp.MustCompile(`_{2,}`)
+
+var (
+	episodeGetEpisode = func(ctx context.Context, client *api.Client, id string) (*api.Episode, error) {
+		return client.GetEpisode(ctx, id)
+	}
+	episodeDeleteStream = func(ctx context.Context, client *api.Client, id, token string) (bool, error) {
+		return client.DeleteStream(ctx, id, token)
+	}
+	episodeFetchManifest = func(ctx context.Context, client *api.Client, url string) ([]byte, error) {
+		return client.FetchManifest(ctx, url)
+	}
+	episodeParseManifest = media.ParseManifest
+	episodeGetPssh       = drm.GetPssh
+	episodeGetLicense    = drm.GetLicense
+	episodeDownloadParts = func(ctx context.Context, client *api.Client, baseURL, representationID *string, set *mpd.AdaptationSet, keys []*widevine.Key, workers int, streamLabel string) (string, error) {
+		return media.DownloadParts(ctx, client, baseURL, representationID, set, keys, workers, streamLabel)
+	}
+	episodeDownloadSubs = func(ctx context.Context, client *api.Client, url string) (string, error) {
+		return media.DownloadSubs(ctx, client, url)
+	}
+	episodeMerge = mux.MergeEverything
+)
 
 func sanitizeFilename(s string) string {
 	if s == "" {
@@ -118,7 +141,7 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 		cleanupCtx, cancelCleanup := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancelCleanup()
 		for id, sToken := range activeStreams {
-			if _, err := client.DeleteStream(cleanupCtx, id, sToken); err != nil {
+			if _, err := episodeDeleteStream(cleanupCtx, client, id, sToken); err != nil {
 				output.Global.Warn("Failed to remove stream %s: %v", id, err)
 			}
 		}
@@ -129,7 +152,7 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 
 	episodeStart := time.Now()
 
-	firstEpisode, err := client.GetEpisode(ctx, versions[0].contentId)
+	firstEpisode, err := episodeGetEpisode(ctx, client, versions[0].contentId)
 	if err != nil {
 		return fmt.Errorf("fetching first episode: %w", err)
 	}
@@ -158,7 +181,7 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 			continue
 		}
 		output.Global.Info("Downloading subtitles for %s...", mux.TrackTitle(locale))
-		file, err := media.DownloadSubs(ctx, client, firstEpisode.Subtitles[locale].URL)
+		file, err := episodeDownloadSubs(ctx, client, firstEpisode.Subtitles[locale].URL)
 		if err != nil {
 			return fmt.Errorf("downloading subtitles for %s: %w", locale, err)
 		}
@@ -176,23 +199,23 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 	version := versions[0]
 
 	var manifest *mpd.MPD
-	manifestData, err := client.FetchManifest(ctx, firstEpisode.ManifestURL)
+	manifestData, err := episodeFetchManifest(ctx, client, firstEpisode.ManifestURL)
 	if err != nil {
 		return fmt.Errorf("fetching manifest for %s: %w", version.locale, err)
 	}
 
-	manifest, err = media.ParseManifest(manifestData)
+	manifest, err = episodeParseManifest(manifestData)
 	if err != nil {
 		return fmt.Errorf("parsing manifest for %s: %w", version.locale, err)
 	}
 	media.SetCachedManifest(version.contentId, manifest)
 
-	pssh := drm.GetPssh(manifest)
+	pssh := episodeGetPssh(manifest)
 	if pssh == nil {
 		return fmt.Errorf("PSSH not found for %s", version.locale)
 	}
 
-	keys, err := drm.GetLicense(ctx, client, *pssh, version.contentId, firstEpisode.Token)
+	keys, err := episodeGetLicense(ctx, client, *pssh, version.contentId, firstEpisode.Token)
 	if err != nil {
 		return fmt.Errorf("getting license for %s: %w", version.locale, err)
 	}
@@ -204,7 +227,7 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 		return fmt.Errorf("failed to get audio base URL for %s", version.locale)
 	}
 
-	audioFile, err := media.DownloadParts(ctx, client, audioBaseUrl, audioRepresentationId, audioSet, keys, workers, mux.TrackTitle(version.locale)+" audio")
+	audioFile, err := episodeDownloadParts(ctx, client, audioBaseUrl, audioRepresentationId, audioSet, keys, workers, mux.TrackTitle(version.locale)+" audio")
 	if err != nil {
 		return fmt.Errorf("downloading audio for %s: %w", version.locale, err)
 	}
@@ -218,7 +241,7 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 	if baseUrl == nil {
 		return fmt.Errorf("failed to get video base URL")
 	}
-	videoFile, err = media.DownloadParts(ctx, client, baseUrl, representationId, videoSet, keys, workers, "video")
+	videoFile, err = episodeDownloadParts(ctx, client, baseUrl, representationId, videoSet, keys, workers, "video")
 	if err != nil {
 		return fmt.Errorf("downloading video: %w", err)
 	}
@@ -236,7 +259,7 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 				manifest := media.GetCachedManifest(version.contentId)
 				var episodeToken string
 				if manifest == nil {
-					episode, err := client.GetEpisode(gctx, version.contentId)
+					episode, err := episodeGetEpisode(gctx, client, version.contentId)
 					if err != nil {
 						return fmt.Errorf("fetching episode for %s: %w", version.locale, err)
 					}
@@ -246,19 +269,19 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 					activeStreams[version.contentId] = episode.Token
 					mu.Unlock()
 
-					manifestData, err := client.FetchManifest(gctx, episode.ManifestURL)
+					manifestData, err := episodeFetchManifest(gctx, client, episode.ManifestURL)
 					if err != nil {
 						return fmt.Errorf("fetching manifest for %s: %w", version.locale, err)
 					}
 
-					manifest, err = media.ParseManifest(manifestData)
+					manifest, err = episodeParseManifest(manifestData)
 					if err != nil {
 						return fmt.Errorf("parsing manifest for %s: %w", version.locale, err)
 					}
 					media.SetCachedManifest(version.contentId, manifest)
 				}
 
-				pssh := drm.GetPssh(manifest)
+				pssh := episodeGetPssh(manifest)
 				if pssh == nil {
 					return fmt.Errorf("PSSH not found for %s", version.locale)
 				}
@@ -269,7 +292,7 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 					mu.Unlock()
 				}
 
-				keys, err := drm.GetLicense(gctx, client, *pssh, version.contentId, episodeToken)
+				keys, err := episodeGetLicense(gctx, client, *pssh, version.contentId, episodeToken)
 				if err != nil {
 					return fmt.Errorf("getting license for %s: %w", version.locale, err)
 				}
@@ -283,7 +306,7 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 					return fmt.Errorf("failed to get audio base URL for %s", version.locale)
 				}
 
-				audioFile, err := media.DownloadParts(gctx, client, audioBaseUrl, audioRepresentationId, audioSet, keys, workers, mux.TrackTitle(version.locale)+" audio")
+				audioFile, err := episodeDownloadParts(gctx, client, audioBaseUrl, audioRepresentationId, audioSet, keys, workers, mux.TrackTitle(version.locale)+" audio")
 				if err != nil {
 					return fmt.Errorf("downloading audio for %s: %w", version.locale, err)
 				}
@@ -304,7 +327,7 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 	// Phase C: Stream cleanup is handled by the deferred function above.
 	// All activeStreams entries are released in the deferred DeleteStream loop.
 
-	if err := mux.MergeEverything(ctx, videoFile, audioTracks, subTracks, outputFile, info); err != nil {
+	if err := episodeMerge(ctx, videoFile, audioTracks, subTracks, outputFile, info); err != nil {
 		return fmt.Errorf("muxing episode: %w", err)
 	}
 	completed = true
