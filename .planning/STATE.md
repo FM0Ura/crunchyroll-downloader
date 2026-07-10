@@ -2,18 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Storage, CLI & Error Handling
-current_phase: 7
+current_phase: 07
 current_phase_name: Organized Output + Folder Metadata
 status: executing
-stopped_at: Phase 7 context gathered
-last_updated: "2026-07-10T22:00:18.558Z"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-07-10T22:49:56.736Z"
 last_activity: 2026-07-10
-last_activity_desc: Phase 06 complete, transitioned to Phase 7
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 11
+  completed_plans: 8
   percent: 20
 ---
 
@@ -66,7 +65,7 @@ Prior v1.0 Improvement & Optimization Pass shipped 2026-07-10 (Phases 1-5, all c
 | 260709-uw6 | Move config JSON from XDG directory to project root (./config.json) | 2026-07-10 | 7bc96eb | [260709-uw6-move-config-json-from-xdg-directory-to-p](./quick/260709-uw6-move-config-json-from-xdg-directory-to-p/) |
 | 260709-v3w | Fix speed display unit — Bps() used newest instead of oldest sample timestamp | 2026-07-10 | 0167928 | [260709-v3w-fix-speed-display-unit-bps-uses-wrong-ol](./quick/260709-v3w-fix-speed-display-unit-bps-uses-wrong-ol/) |
 
-Last activity: 2026-07-10 — Phase 06 complete, transitioned to Phase 7
+Last activity: 2026-07-10
 
 ## Next Action
 
@@ -77,22 +76,22 @@ v1.1 roadmap ready. Next: `/gsd-plan-phase 6` (Track Hardening + Structured Logg
 See: .planning/PROJECT.md (updated 2026-07-10)
 
 **Core value:** Download any anime episode or full season from Crunchyroll into a single playable MKV file
-**Current focus:** Phase 06 — track-hardening-structured-logging
+**Current focus:** Phase 07 — Organized Output + Folder Metadata
 
 ## Current Position
 
-Phase: 7 — Organized Output + Folder Metadata
-Plan: Not started
+Phase: 07 (Organized Output + Folder Metadata) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-07-10 — Phase 06 execution started
+Last activity: 2026-07-10 — Phase 07 execution started
 
 Progress: [░░░░░░░░░░] 0% (0/5 v1.1 phases)
 
 ## Session
 
-**Last session:** 2026-07-10T22:00:18.551Z
-**Stopped at:** Phase 7 context gathered
-**Resume file:** .planning/phases/07-organized-output-folder-metadata/07-CONTEXT.md
+**Last session:** 2026-07-10T22:49:46.022Z
+**Stopped at:** Completed 07-01-PLAN.md
+**Resume file:** None
 
 ## Performance Metrics
 
@@ -102,6 +101,7 @@ Progress: [░░░░░░░░░░] 0% (0/5 v1.1 phases)
 | Phase 06 P04 | 8min | 3 tasks | 3 files |
 | Phase 06 P06 | 22min | 3 tasks | 5 files |
 | Phase 06 P07 | 3 min | 3 tasks | 3 files |
+| Phase 07 P01 | 1 min | 1 tasks | 2 files |
 
 ## Decisions
 
@@ -110,3 +110,4 @@ Progress: [░░░░░░░░░░] 0% (0/5 v1.1 phases)
 - [Phase ?]: [Phase 06]: Kept missing-track skip surfacing on output.Global.Warn only, preserving the existing NDJSON warn contract.
 - [Phase 06]: [Phase 06 P07] resolveLangs consults no env vars - no CRUNCHYROLL_AUDIO_LANG/SUBS_LANG decision exists in Phase 06, unlike the scalar resolveString path.
 - [Phase 06]: [Phase 06 P07] Nil config slice => default fallback; explicit empty config array => empty slice to ERR-03 hard-error guard. Nil-vs-empty distinction preserved and tested.
+- [Phase ?]: D-05 fix: season_number mux metadata arg (mux.go:108) now sources SeasonNumber, not EpisodeNumber — proven by regression test with distinct Season=2/Episode=7

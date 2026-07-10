@@ -26,7 +26,7 @@ Requirements for milestone v1.1 (Storage, CLI & Error Handling). Each maps to a 
 
 - [ ] **OUT-01**: Downloads are organized into `Series Title (Year)/Season 01/Series Title S01E01 - Title.mkv` folder structure (Jellyfin/Kodi convention)
 - [ ] **OUT-02**: Re-running a series download skips already-downloaded episodes using the new nested folder layout (resumability preserved)
-- [ ] **OUT-03**: The latent `season_number=EpisodeNumber` bug in mux.go is fixed to use SeasonNumber before metadata is mirrored into NFO
+- [x] **OUT-03**: The latent `season_number=EpisodeNumber` bug in mux.go is fixed to use SeasonNumber before metadata is mirrored into NFO
 
 ### Metadata
 
@@ -108,7 +108,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LOG-05 | Phase 6 | Complete |
 | OUT-01 | Phase 7 | Pending |
 | OUT-02 | Phase 7 | Pending |
-| OUT-03 | Phase 7 | Pending |
+| OUT-03 | Phase 7 | Complete |
 | META-01 | Phase 7 | Pending |
 | META-02 | Phase 7 | Pending |
 | META-03 | Phase 7 | Pending |
