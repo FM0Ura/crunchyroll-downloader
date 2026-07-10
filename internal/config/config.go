@@ -9,15 +9,66 @@ import (
 
 // Config represents the JSON config file at ./config.json (project root).
 // Pointer fields enable explicit-only overrides: nil = absent from file.
+// Language slices use nil = absent from file; empty slice = explicit empty.
 type Config struct {
-	AudioLang      *string `json:"audio_lang,omitempty"`
-	SubsLang       *string `json:"subs_lang,omitempty"`
-	VideoQuality   *string `json:"video_quality,omitempty"`
-	AudioQuality   *string `json:"audio_quality,omitempty"`
-	Workers        *int    `json:"workers,omitempty"`
-	OutputDir      *string `json:"output_dir,omitempty"`
-	EtpRt          *string `json:"etp_rt,omitempty"`
-	WidevineDevice *string `json:"widevine_device,omitempty"`
+	// D-02 array schema: first element is the primary track per D-01.
+	AudioLang []string `json:"audio_lang,omitempty"`
+	// D-02 array schema: first element is the primary track per D-01.
+	SubsLang       []string `json:"subs_lang,omitempty"`
+	VideoQuality   *string  `json:"video_quality,omitempty"`
+	AudioQuality   *string  `json:"audio_quality,omitempty"`
+	Workers        *int     `json:"workers,omitempty"`
+	OutputDir      *string  `json:"output_dir,omitempty"`
+	EtpRt          *string  `json:"etp_rt,omitempty"`
+	WidevineDevice *string  `json:"widevine_device,omitempty"`
+	// Diagnostic-log explicit overrides consumed via resolveString in main.go.
+	LogLevel *string `json:"log_level,omitempty"`
+	LogFile  *string `json:"log_file,omitempty"`
+}
+
+// UnmarshalJSON accepts the D-02 array schema while tolerating legacy single
+// string language fields for backward compatibility.
+func (c *Config) UnmarshalJSON(data []byte) error {
+	type configAlias Config
+	var raw struct {
+		AudioLang json.RawMessage `json:"audio_lang"`
+		SubsLang  json.RawMessage `json:"subs_lang"`
+		*configAlias
+	}
+	raw.configAlias = (*configAlias)(c)
+
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.AudioLang != nil {
+		langs, err := unmarshalLangs(raw.AudioLang, "audio_lang")
+		if err != nil {
+			return fmt.Errorf("audio_lang: %w", err)
+		}
+		c.AudioLang = langs
+	}
+	if raw.SubsLang != nil {
+		langs, err := unmarshalLangs(raw.SubsLang, "subs_lang")
+		if err != nil {
+			return fmt.Errorf("subs_lang: %w", err)
+		}
+		c.SubsLang = langs
+	}
+	return nil
+}
+
+func unmarshalLangs(data []byte, field string) ([]string, error) {
+	var langs []string
+	if err := json.Unmarshal(data, &langs); err == nil {
+		return langs, nil
+	}
+
+	var lang string
+	if err := json.Unmarshal(data, &lang); err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(os.Stderr, "Warning: config %s is a single string; migrating to array form. Update config.json to use an array.\n", field)
+	return []string{lang}, nil
 }
 
 // ConfigDir returns the current working directory as the config directory.
@@ -64,12 +115,14 @@ func WriteSkeleton(path string) error {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
 
+	// WriteSkeleton includes the D-19 diagnostic default: "log_level": "info".
 	skeleton := map[string]interface{}{
-		"audio_lang":    "ja-JP",
-		"subs_lang":     "en-US",
+		"audio_lang":    []string{"ja-JP"},
+		"subs_lang":     []string{"en-US"},
 		"video_quality": "1080p",
 		"audio_quality": "192k",
 		"workers":       10,
+		"log_level":     "info",
 	}
 
 	data, err := json.MarshalIndent(skeleton, "", "  ")
@@ -117,6 +170,12 @@ func Merge(base, overlay *Config) *Config {
 	}
 	if overlay.WidevineDevice != nil {
 		result.WidevineDevice = overlay.WidevineDevice
+	}
+	if overlay.LogLevel != nil {
+		result.LogLevel = overlay.LogLevel
+	}
+	if overlay.LogFile != nil {
+		result.LogFile = overlay.LogFile
 	}
 
 	return result
