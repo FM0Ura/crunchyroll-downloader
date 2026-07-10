@@ -6,13 +6,13 @@ current_phase: 07
 current_phase_name: Organized Output + Folder Metadata
 status: executing
 stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-07-10T22:49:56.736Z"
+last_updated: "2026-07-10T22:53:22.896Z"
 last_activity: 2026-07-10
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 11
-  completed_plans: 8
+  completed_plans: 9
   percent: 20
 ---
 
@@ -81,7 +81,7 @@ See: .planning/PROJECT.md (updated 2026-07-10)
 ## Current Position
 
 Phase: 07 (Organized Output + Folder Metadata) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-07-10 — Phase 07 execution started
 
@@ -89,7 +89,7 @@ Progress: [░░░░░░░░░░] 0% (0/5 v1.1 phases)
 
 ## Session
 
-**Last session:** 2026-07-10T22:49:46.022Z
+**Last session:** 2026-07-10T22:53:17.860Z
 **Stopped at:** Completed 07-01-PLAN.md
 **Resume file:** None
 
@@ -102,6 +102,7 @@ Progress: [░░░░░░░░░░] 0% (0/5 v1.1 phases)
 | Phase 06 P06 | 22min | 3 tasks | 5 files |
 | Phase 06 P07 | 3 min | 3 tasks | 3 files |
 | Phase 07 P01 | 1 min | 1 tasks | 2 files |
+| Phase 07 P02 | 1 min | 2 tasks | 2 files |
 
 ## Decisions
 
@@ -111,3 +112,4 @@ Progress: [░░░░░░░░░░] 0% (0/5 v1.1 phases)
 - [Phase 06]: [Phase 06 P07] resolveLangs consults no env vars - no CRUNCHYROLL_AUDIO_LANG/SUBS_LANG decision exists in Phase 06, unlike the scalar resolveString path.
 - [Phase 06]: [Phase 06 P07] Nil config slice => default fallback; explicit empty config array => empty slice to ERR-03 hard-error guard. Nil-vs-empty distinction preserved and tested.
 - [Phase ?]: D-05 fix: season_number mux metadata arg (mux.go:108) now sources SeasonNumber, not EpisodeNumber — proven by regression test with distinct Season=2/Episode=7
+- [Phase ?]: D-04: drop [{quality}] from on-disk MKV filename; *videoQuality param retained (07-02)

@@ -78,11 +78,11 @@
   4. User gets a `tvshow.nfo` at the series root and a per-episode `.nfo` with `<uniqueid type="crunchyroll">`, both readable by a real Jellyfin and a real Kodi scan
   5. User gets `poster.jpg`/`backdrop.jpg` when available; a 404 on artwork does not fail the download
 
-**Plans**: 1/4 plans executed
+**Plans**: 2/4 plans executed
 **Wave 1**
 
 - [x] 07-01-PLAN.md — OUT-03 season_number bug fix at internal/mux/mux.go:108 (D-05) + regression test
-- [ ] 07-02-PLAN.md — OUT-01/OUT-02 organized nested `Series Title/Season 01/` layout (D-01..D-04) + resumability-on-deep-path + single-episode-mirrors-season tests
+- [x] 07-02-PLAN.md — OUT-01/OUT-02 organized nested `Series Title/Season 01/` layout (D-01..D-04) + resumability-on-deep-path + single-episode-mirrors-season tests
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -149,7 +149,7 @@ Phases execute in numeric order continuing from v1.0: 6 → 7 → 8 → 9 → 10
 | 4. UX — Progress & Output | v1.0 | 3/3 | Complete | 2026-07-10 |
 | 5. Testing & Quality | v1.0 | 2/2 | Complete | 2026-07-10 |
 | 6. Track Hardening + Structured Logging | v1.1 | 7/7 | Complete    | 2026-07-10 |
-| 7. Organized Output + Folder Metadata | v1.1 | 1/4 | In Progress|  |
+| 7. Organized Output + Folder Metadata | v1.1 | 2/4 | In Progress|  |
 | 8. Compression Presets | v1.1 | 0/TBD | Not started | - |
 | 9. Output Reporter Seam | v1.1 | 0/TBD | Not started | - |
 | 10. Bubble Tea TUI | v1.1 | 0/TBD | Not started | - |
