@@ -47,6 +47,22 @@ func parseLangs(s string) []string {
 	return out
 }
 
+// resolveLangs resolves a language list through the D-01/D-02 precedence:
+// explicit CLI flag > config array > default. The explicitFlags map should be
+// built via flag.Visit(). The first element of the returned slice is the
+// protected primary track, so slice order is preserved exactly. No language
+// environment variables are consulted (no CRUNCHYROLL_AUDIO_LANG /
+// CRUNCHYROLL_SUBS_LANG decision exists in Phase 06).
+func resolveLangs(explicitFlags map[string]bool, flagName string, flagVal string, configVal []string, defaultVal []string) []string {
+	if explicitFlags[flagName] {
+		return parseLangs(flagVal)
+	}
+	if configVal != nil {
+		return configVal
+	}
+	return defaultVal
+}
+
 // validateOutputDir checks that the specified output directory exists and is a
 // directory. Returns an error message, or empty string if valid.
 func validateOutputDir(dir string) string {
@@ -324,9 +340,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Parse language flags once after config resolution (QOL-08, D-22)
-	audioLangs := parseLangs(*audioLang)
-	subsLangs := parseLangs(*subtitlesLang)
+	// Parse language flags once after config resolution (QOL-08, D-22).
+	// Config audio_lang/subs_lang arrays feed runtime selection unless the
+	// matching CLI flag is explicit (D-01/D-02); first element is primary.
+	audioLangs := resolveLangs(explicitFlags, "audio-lang", *audioLang, cfg.AudioLang, []string{"ja-JP"})
+	subsLangs := resolveLangs(explicitFlags, "subs-lang", *subtitlesLang, cfg.SubsLang, []string{"en-US"})
 
 	// Resolve Widevine device path through precedence and set it before
 	// any API client call, ensuring sync.Once uses the correct path.
