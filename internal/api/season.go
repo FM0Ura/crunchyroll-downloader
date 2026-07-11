@@ -83,8 +83,40 @@ func (c *Client) GetSeasons(ctx context.Context, contentId, audioLocale, subLoca
 // the NEW SeriesInfoResponse (types.go). Preserves the 401-refresh retry
 // inherited from c.Do (client.go). audioLocale/subLocale default to ja-JP/en-US
 // for consistency with GetSeasons/GetSeasonEpisodes.
-//
-// STUB for TDD RED phase — returns nil, nil so tests compile and fail.
 func (c *Client) GetSeriesInfo(ctx context.Context, seriesId, audioLocale, subLocale string) (*SeriesInfo, error) {
-	return nil, nil
+	if audioLocale == "" {
+		audioLocale = "ja-JP"
+	}
+	if subLocale == "" {
+		subLocale = "en-US"
+	}
+
+	req, err := c.newRequest(ctx, http.MethodGet,
+		c.url(fmt.Sprintf("/content/v2/cms/series/%s?preferred_audio_language=%s&locale=%s",
+			seriesId, audioLocale, subLocale)), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var series SeriesInfoResponse
+	if err := json.Unmarshal(body, &series); err != nil {
+		return nil, err
+	}
+
+	if len(series.Data) == 0 {
+		return nil, fmt.Errorf("no series info found for id: %s", seriesId)
+	}
+
+	return &series.Data[0], nil
 }
