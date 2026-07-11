@@ -56,13 +56,16 @@ func TestRunSeasonContinuesAfterEpisodeFailure(t *testing.T) {
 	// the series-info + tvshow.nfo seams so the nil client is not dereferenced.
 	origGetSeries := seriesGetSeriesInfo
 	origWriteTvshow := seriesWriteTvshowNfo
+	origFetchArtwork := seriesFetchArtwork
 	seriesGetSeriesInfo = func(context.Context, *api.Client, string, string, string) (*api.SeriesInfo, error) {
 		return nil, fmt.Errorf("stub: nil client")
 	}
 	seriesWriteTvshowNfo = func(context.Context, string, *api.SeriesInfo) error { return nil }
+	seriesFetchArtwork = func(context.Context, *api.Client, string, string) error { return nil }
 	t.Cleanup(func() {
 		seriesGetSeriesInfo = origGetSeries
 		seriesWriteTvshowNfo = origWriteTvshow
+		seriesFetchArtwork = origFetchArtwork
 	})
 
 	videoQuality := "1080p"
@@ -169,7 +172,9 @@ func TestRunSeasonWritesTvshowNfoOnceBeforeEpisodeLoop(t *testing.T) {
 		})
 
 		err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, "",
-			func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int) error { return nil })
+			func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int) error {
+				return nil
+			})
 		if err != nil {
 			t.Fatalf("runSeason() error = %v, want nil default path", err)
 		}
@@ -198,6 +203,12 @@ func TestRunSeasonWritesTvshowNfoOnceBeforeEpisodeLoop(t *testing.T) {
 		if err := os.WriteFile(tvshowPath, []byte("exists"), 0o600); err != nil {
 			t.Fatalf("WriteFile: %v", err)
 		}
+		if err := os.WriteFile(filepath.Join(seriesDir, "poster.jpg"), []byte("poster"), 0o600); err != nil {
+			t.Fatalf("WriteFile poster: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(seriesDir, "backdrop.jpg"), []byte("backdrop"), 0o600); err != nil {
+			t.Fatalf("WriteFile backdrop: %v", err)
+		}
 
 		seriesCalled := false
 		writeCalled := false
@@ -217,7 +228,9 @@ func TestRunSeasonWritesTvshowNfoOnceBeforeEpisodeLoop(t *testing.T) {
 		})
 
 		err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, dir,
-			func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int) error { return nil })
+			func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int) error {
+				return nil
+			})
 		if err != nil {
 			t.Fatalf("runSeason() error = %v, want nil with existing tvshow.nfo", err)
 		}
@@ -245,6 +258,7 @@ func TestRunSeasonTvshowNfoNonFatal(t *testing.T) {
 	var tvshowInfo *api.SeriesInfo
 	origGetSeries := seriesGetSeriesInfo
 	origWriteTvshow := seriesWriteTvshowNfo
+	origFetchArtwork := seriesFetchArtwork
 	seriesGetSeriesInfo = func(context.Context, *api.Client, string, string, string) (*api.SeriesInfo, error) {
 		return nil, fmt.Errorf("API down")
 	}
@@ -252,9 +266,11 @@ func TestRunSeasonTvshowNfoNonFatal(t *testing.T) {
 		tvshowInfo = info
 		return nil
 	}
+	seriesFetchArtwork = func(context.Context, *api.Client, string, string) error { return nil }
 	t.Cleanup(func() {
 		seriesGetSeriesInfo = origGetSeries
 		seriesWriteTvshowNfo = origWriteTvshow
+		seriesFetchArtwork = origFetchArtwork
 	})
 
 	var epCalls int
@@ -277,5 +293,111 @@ func TestRunSeasonTvshowNfoNonFatal(t *testing.T) {
 	}
 	if tvshowInfo.ID != "GSERIES-NF" || tvshowInfo.Title != "Test Series" {
 		t.Fatalf("tvshow fallback = %#v, want ID+Title from episodes[0]", tvshowInfo)
+	}
+}
+
+func TestRunSeasonWritesArtworkAtSeriesRoot(t *testing.T) {
+	outputDir := t.TempDir()
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	episodes := []api.SeasonEpisode{
+		{ID: "e1", SeriesTitle: "Test Series", SeriesID: "GSERIES-ART", SeasonNumber: 1, EpisodeNumber: 1, AudioLocale: "ja-JP", Title: "First"},
+	}
+
+	origGetSeries := seriesGetSeriesInfo
+	origWriteTvshow := seriesWriteTvshowNfo
+	origFetchArtwork := seriesFetchArtwork
+	seriesGetSeriesInfo = func(context.Context, *api.Client, string, string, string) (*api.SeriesInfo, error) {
+		return &api.SeriesInfo{
+			ID:          "GSERIES-ART",
+			Title:       "Test Series",
+			PosterURL:   "https://img1.crunchyroll.com/poster.jpg",
+			BackdropURL: "https://img1.crunchyroll.com/backdrop.jpg",
+		}, nil
+	}
+	seriesWriteTvshowNfo = func(context.Context, string, *api.SeriesInfo) error { return nil }
+	var dests []string
+	seriesFetchArtwork = func(_ context.Context, _ *api.Client, _ string, destPath string) error {
+		dests = append(dests, destPath)
+		return nil
+	}
+	t.Cleanup(func() {
+		seriesGetSeriesInfo = origGetSeries
+		seriesWriteTvshowNfo = origWriteTvshow
+		seriesFetchArtwork = origFetchArtwork
+	})
+
+	err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, outputDir,
+		func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int) error {
+			return nil
+		})
+	if err != nil {
+		t.Fatalf("runSeason() error = %v, want nil", err)
+	}
+
+	wantRoot := filepath.Join(outputDir, sanitizeFilename("Test Series"))
+	want := []string{filepath.Join(wantRoot, "poster.jpg"), filepath.Join(wantRoot, "backdrop.jpg")}
+	if len(dests) != len(want) {
+		t.Fatalf("seriesFetchArtwork invoked %d time(s), want %d: %v", len(dests), len(want), dests)
+	}
+	for i := range want {
+		if dests[i] != want[i] {
+			t.Fatalf("dests[%d] = %q, want %q", i, dests[i], want[i])
+		}
+	}
+}
+
+func TestRunSeasonWritesArtworkNonFatalOn404(t *testing.T) {
+	t.Chdir(t.TempDir())
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	episodes := []api.SeasonEpisode{
+		{ID: "e1", SeriesTitle: "Test Series", SeriesID: "GSERIES-404", SeasonNumber: 1, EpisodeNumber: 1, AudioLocale: "ja-JP", Title: "First"},
+		{ID: "e2", SeriesTitle: "Test Series", SeriesID: "GSERIES-404", SeasonNumber: 1, EpisodeNumber: 2, AudioLocale: "ja-JP", Title: "Second"},
+	}
+
+	origGetSeries := seriesGetSeriesInfo
+	origWriteTvshow := seriesWriteTvshowNfo
+	origFetchArtwork := seriesFetchArtwork
+	seriesGetSeriesInfo = func(context.Context, *api.Client, string, string, string) (*api.SeriesInfo, error) {
+		return &api.SeriesInfo{
+			ID:          "GSERIES-404",
+			Title:       "Test Series",
+			PosterURL:   "https://img1.crunchyroll.com/poster.jpg",
+			BackdropURL: "https://img1.crunchyroll.com/backdrop.jpg",
+		}, nil
+	}
+	seriesWriteTvshowNfo = func(context.Context, string, *api.SeriesInfo) error { return nil }
+	var fetchCalls int
+	seriesFetchArtwork = func(context.Context, *api.Client, string, string) error {
+		fetchCalls++
+		return api.ErrArtworkNotFound
+	}
+	t.Cleanup(func() {
+		seriesGetSeriesInfo = origGetSeries
+		seriesWriteTvshowNfo = origWriteTvshow
+		seriesFetchArtwork = origFetchArtwork
+	})
+
+	var episodeCalls int
+	stdout := captureEpisodeStdout(t, func() {
+		err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, "",
+			func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int) error {
+				episodeCalls++
+				return nil
+			})
+		if err != nil {
+			t.Fatalf("runSeason() error = %v, want nil despite artwork 404", err)
+		}
+	})
+
+	if fetchCalls != 2 {
+		t.Fatalf("seriesFetchArtwork invoked %d time(s), want 2", fetchCalls)
+	}
+	if episodeCalls != 2 {
+		t.Fatalf("episode loop ran %d time(s), want 2", episodeCalls)
+	}
+	if !strings.Contains(stdout, "No artwork available for Test Series") {
+		t.Fatalf("stdout = %q, want artwork warning", stdout)
 	}
 }

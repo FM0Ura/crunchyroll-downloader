@@ -24,7 +24,71 @@ var (
 		return client.GetSeriesInfo(ctx, seriesID, audioLocale, subLocale)
 	}
 	seriesWriteTvshowNfo = nfo.WriteTVShow
+	seriesFetchArtwork   = func(ctx context.Context, client *api.Client, artworkURL, destPath string) error {
+		return client.FetchArtwork(ctx, artworkURL, destPath)
+	}
 )
+
+type artworkFetcher func(context.Context, *api.Client, string, string) error
+
+type seriesArtwork struct {
+	posterURL   string
+	backdropURL string
+}
+
+func (a seriesArtwork) empty() bool {
+	return a.posterURL == "" && a.backdropURL == ""
+}
+
+func seriesArtworkFromInfo(info *api.SeriesInfo) seriesArtwork {
+	if info == nil {
+		return seriesArtwork{}
+	}
+	return seriesArtwork{
+		posterURL:   info.PosterURL,
+		backdropURL: info.BackdropURL,
+	}
+}
+
+func needsSeriesArtwork(seriesRoot string) bool {
+	for _, name := range []string{"poster.jpg", "backdrop.jpg"} {
+		if _, err := os.Stat(filepath.Join(seriesRoot, name)); os.IsNotExist(err) {
+			return true
+		}
+	}
+	return false
+}
+
+func writeSeriesArtwork(ctx context.Context, client *api.Client, seriesTitle, seriesRoot string, artwork seriesArtwork, fetch artworkFetcher) {
+	targets := []struct {
+		name string
+		url  string
+	}{
+		{name: "poster.jpg", url: artwork.posterURL},
+		{name: "backdrop.jpg", url: artwork.backdropURL},
+	}
+
+	loggedNoURL := false
+	for _, target := range targets {
+		destPath := filepath.Join(seriesRoot, target.name)
+		if _, err := os.Stat(destPath); err == nil {
+			continue
+		}
+		if target.url == "" {
+			if !loggedNoURL && diag.ApiLogger != nil {
+				diag.ApiLogger.Info("artwork_no_url", "series", seriesTitle)
+			}
+			loggedNoURL = true
+			continue
+		}
+		if err := fetch(ctx, client, target.url, destPath); err != nil {
+			output.Global.Warn("No artwork available for %s: %v", seriesTitle, err)
+			if diag.ApiLogger != nil {
+				diag.ApiLogger.Warn("artwork_fetch_failed", "series", seriesTitle, "file", target.name, "err", err)
+			}
+		}
+	}
+}
 
 type episodeError struct {
 	Number int
@@ -79,10 +143,21 @@ func runSeason(ctx context.Context, client *api.Client, videoQuality, audioQuali
 	if err := os.MkdirAll(seriesRoot, 0777); err != nil {
 		return fmt.Errorf("creating series directory: %w", err)
 	}
+	seriesInfo := (*api.SeriesInfo)(nil)
+	seriesInfoFetched := false
+	fetchSeriesInfo := func() (*api.SeriesInfo, error) {
+		if seriesInfoFetched {
+			return seriesInfo, nil
+		}
+		seriesInfoFetched = true
+		var err error
+		seriesInfo, err = seriesGetSeriesInfo(ctx, client, episodes[0].SeriesID, "", "")
+		return seriesInfo, err
+	}
 	tvshowNfoPath := filepath.Join(seriesRoot, "tvshow.nfo")
 	if _, err := os.Stat(tvshowNfoPath); err != nil {
 		seriesID := episodes[0].SeriesID
-		seriesInfo, serr := seriesGetSeriesInfo(ctx, client, seriesID, "", "")
+		seriesInfo, serr := fetchSeriesInfo()
 		if serr != nil || seriesInfo == nil {
 			if serr != nil {
 				output.Global.Warn("Failed to fetch series metadata for %s: %v", episodes[0].SeriesTitle, serr)
@@ -112,6 +187,15 @@ func runSeason(ctx context.Context, client *api.Client, videoQuality, audioQuali
 			}
 		}
 	}
+	if needsSeriesArtwork(seriesRoot) {
+		if _, serr := fetchSeriesInfo(); serr != nil {
+			output.Global.Warn("No artwork available for %s: %v", episodes[0].SeriesTitle, serr)
+			if diag.ApiLogger != nil {
+				diag.ApiLogger.Warn("artwork_fetch_failed", "series", episodes[0].SeriesTitle, "err", serr)
+			}
+		}
+	}
+	writeSeriesArtwork(ctx, client, episodes[0].SeriesTitle, seriesRoot, seriesArtworkFromInfo(seriesInfo), seriesFetchArtwork)
 
 	var failures []episodeError
 	for _, ep := range episodes {

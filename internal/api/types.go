@@ -1,10 +1,10 @@
 package api
 
 type Episode struct {
-	ManifestURL string                `json:"url"`
-	Subtitles   map[string]*Subtitle  `json:"subtitles"`
-	Token       string                `json:"token"`
-	Error       any                   `json:"error"`
+	ManifestURL string               `json:"url"`
+	Subtitles   map[string]*Subtitle `json:"subtitles"`
+	Token       string               `json:"token"`
+	Error       any                  `json:"error"`
 }
 
 type Subtitle struct {
@@ -33,6 +33,8 @@ type EpisodeMetadata struct {
 	SeasonNumber       int           `json:"season_number"`
 	SeriesTitle        string        `json:"series_title"`
 	SeriesID           string        `json:"series_id"`
+	PosterURL          string        `json:"poster_url"`
+	BackdropURL        string        `json:"backdrop_url"`
 	Description        string        `json:"description"`
 	Slug               string        `json:"slug"`
 	DurationMs         int           `json:"duration_ms"`
@@ -88,6 +90,8 @@ type SeriesInfoResponse struct {
 type SeriesInfo struct {
 	ID          string   `json:"id"`
 	Title       string   `json:"title"`
+	PosterURL   string   `json:"poster_url"`
+	BackdropURL string   `json:"backdrop_url"`
 	Description string   `json:"description"`
 	Genres      []string `json:"genres"`
 	Studio      string   `json:"studio"`

@@ -54,6 +54,9 @@ var (
 	episodeGetSeriesInfo  = func(ctx context.Context, client *api.Client, seriesID, audioLocale, subLocale string) (*api.SeriesInfo, error) {
 		return client.GetSeriesInfo(ctx, seriesID, audioLocale, subLocale)
 	}
+	episodeFetchArtwork = func(ctx context.Context, client *api.Client, artworkURL, destPath string) error {
+		return client.FetchArtwork(ctx, artworkURL, destPath)
+	}
 )
 
 func sanitizeFilename(s string) string {
@@ -373,8 +376,19 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 	// DEFAULT path fires episodeGetSeriesInfo(info.EpisodeMetadata.SeriesID);
 	// title-only fallback is written ONLY when GetSeriesInfo errors (D-09).
 	tvshowNfoPath := filepath.Join(outputBase, "tvshow.nfo")
+	seriesInfo := (*api.SeriesInfo)(nil)
+	seriesInfoFetched := false
+	fetchSeriesInfo := func() (*api.SeriesInfo, error) {
+		if seriesInfoFetched {
+			return seriesInfo, nil
+		}
+		seriesInfoFetched = true
+		var err error
+		seriesInfo, err = episodeGetSeriesInfo(ctx, client, info.EpisodeMetadata.SeriesID, "", "")
+		return seriesInfo, err
+	}
 	if _, err := os.Stat(tvshowNfoPath); err != nil {
-		seriesInfo, serr := episodeGetSeriesInfo(ctx, client, info.EpisodeMetadata.SeriesID, "", "")
+		seriesInfo, serr := fetchSeriesInfo()
 		if serr != nil || seriesInfo == nil {
 			if serr != nil {
 				output.Global.Warn("Failed to fetch series metadata for %s: %v", info.EpisodeMetadata.SeriesTitle, serr)
@@ -405,6 +419,29 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 			}
 		}
 	}
+	artwork := seriesArtworkFromInfo(seriesInfo)
+	if artwork.empty() {
+		artwork = seriesArtwork{
+			posterURL:   info.EpisodeMetadata.PosterURL,
+			backdropURL: info.EpisodeMetadata.BackdropURL,
+		}
+	}
+	if needsSeriesArtwork(outputBase) && artwork.empty() {
+		if _, serr := fetchSeriesInfo(); serr != nil {
+			output.Global.Warn("No artwork available for %s: %v", info.EpisodeMetadata.SeriesTitle, serr)
+			if diag.ApiLogger != nil {
+				diag.ApiLogger.Warn("artwork_fetch_failed", "series", info.EpisodeMetadata.SeriesTitle, "err", serr)
+			}
+		}
+		artwork = seriesArtworkFromInfo(seriesInfo)
+		if artwork.empty() {
+			artwork = seriesArtwork{
+				posterURL:   info.EpisodeMetadata.PosterURL,
+				backdropURL: info.EpisodeMetadata.BackdropURL,
+			}
+		}
+	}
+	writeSeriesArtwork(ctx, client, info.EpisodeMetadata.SeriesTitle, outputBase, artwork, episodeFetchArtwork)
 
 	// Per-episode success result line
 	duration := time.Since(episodeStart).Round(time.Second)

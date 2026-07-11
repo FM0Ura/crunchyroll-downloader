@@ -470,6 +470,7 @@ func restoreEpisodeTestSeams(t *testing.T, subtitles map[string]*api.Subtitle) {
 	origWriteNfo := episodeWriteNfo
 	origWriteTvshow := episodeWriteTvshowNfo
 	origGetSeriesInfo := episodeGetSeriesInfo
+	origFetchArtwork := episodeFetchArtwork
 
 	episodeGetEpisode = func(context.Context, *api.Client, string) (*api.Episode, error) {
 		return &api.Episode{
@@ -510,6 +511,7 @@ func restoreEpisodeTestSeams(t *testing.T, subtitles map[string]*api.Subtitle) {
 	episodeGetSeriesInfo = func(context.Context, *api.Client, string, string, string) (*api.SeriesInfo, error) {
 		return nil, nil
 	}
+	episodeFetchArtwork = func(context.Context, *api.Client, string, string) error { return nil }
 
 	t.Cleanup(func() {
 		episodeGetEpisode = origGetEpisode
@@ -524,6 +526,7 @@ func restoreEpisodeTestSeams(t *testing.T, subtitles map[string]*api.Subtitle) {
 		episodeWriteNfo = origWriteNfo
 		episodeWriteTvshowNfo = origWriteTvshow
 		episodeGetSeriesInfo = origGetSeriesInfo
+		episodeFetchArtwork = origFetchArtwork
 	})
 }
 
@@ -676,11 +679,11 @@ func TestEpisodeWritesPerEpisodeNfoNonFatal(t *testing.T) {
 func TestEpisodeWritesTvshowNfoOnSingleEpisodeFlow(t *testing.T) {
 	info := &api.EpisodeInfo{
 		EpisodeMetadata: api.EpisodeMetadata{
-			SeriesTitle:  "Test Series",
-			SeriesID:     "GSERIES-EP",
-			SeasonNumber: 1,
+			SeriesTitle:   "Test Series",
+			SeriesID:      "GSERIES-EP",
+			SeasonNumber:  1,
 			EpisodeNumber: 1,
-			AudioLocale:  "ja-JP",
+			AudioLocale:   "ja-JP",
 		},
 		Title: "Test Episode",
 	}
@@ -761,4 +764,59 @@ func TestEpisodeWritesTvshowNfoOnSingleEpisodeFlow(t *testing.T) {
 			t.Errorf("stdout = %q, want series-info-fetch-failed warn line", stdout)
 		}
 	})
+}
+
+func TestEpisodeWritesArtworkOnSingleEpisodeFlow(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	info := &api.EpisodeInfo{
+		EpisodeMetadata: api.EpisodeMetadata{
+			SeriesTitle:   "Test Series",
+			SeriesID:      "GSERIES-EP-ART",
+			SeasonNumber:  1,
+			EpisodeNumber: 1,
+			AudioLocale:   "ja-JP",
+		},
+		Title: "Test Episode",
+	}
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	client := api.NewTestClient(nil, "https://example.com", "test-token")
+
+	restoreEpisodeTestSeams(t, map[string]*api.Subtitle{})
+	episodeGetSeriesInfo = func(context.Context, *api.Client, string, string, string) (*api.SeriesInfo, error) {
+		return &api.SeriesInfo{
+			ID:          "GSERIES-EP-ART",
+			Title:       "Test Series",
+			PosterURL:   "https://img1.crunchyroll.com/poster.jpg",
+			BackdropURL: "https://img1.crunchyroll.com/backdrop.jpg",
+		}, nil
+	}
+
+	var dests []string
+	episodeFetchArtwork = func(_ context.Context, _ *api.Client, _ string, destPath string) error {
+		dests = append(dests, destPath)
+		return api.ErrArtworkNotFound
+	}
+
+	stdout := captureEpisodeStdout(t, func() {
+		err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+		if err != nil {
+			t.Fatalf("Episode() error = %v, want nil despite artwork 404", err)
+		}
+	})
+
+	wantRoot := sanitizeFilename("Test Series")
+	want := []string{filepath.Join(wantRoot, "poster.jpg"), filepath.Join(wantRoot, "backdrop.jpg")}
+	if len(dests) != len(want) {
+		t.Fatalf("episodeFetchArtwork invoked %d time(s), want %d: %v", len(dests), len(want), dests)
+	}
+	for i := range want {
+		if dests[i] != want[i] {
+			t.Fatalf("dests[%d] = %q, want %q", i, dests[i], want[i])
+		}
+	}
+	if !strings.Contains(stdout, "No artwork available for Test Series") {
+		t.Fatalf("stdout = %q, want artwork warning", stdout)
+	}
 }
