@@ -75,3 +75,16 @@ func (c *Client) GetSeasons(ctx context.Context, contentId, audioLocale, subLoca
 
 	return seasons.Data, nil
 }
+
+// GetSeriesInfo fetches the series-level CMS object for the given series id
+// (D-07 LOCKED). The confirmed endpoint path mirrors the GetSeasons prefix
+// (`/content/v2/cms/series/%s/seasons`): `/content/v2/cms/series/%s` returns
+// the series object carrying title/plot/genre/studio. The decoded body is
+// the NEW SeriesInfoResponse (types.go). Preserves the 401-refresh retry
+// inherited from c.Do (client.go). audioLocale/subLocale default to ja-JP/en-US
+// for consistency with GetSeasons/GetSeasonEpisodes.
+//
+// STUB for TDD RED phase — returns nil, nil so tests compile and fail.
+func (c *Client) GetSeriesInfo(ctx context.Context, seriesId, audioLocale, subLocale string) (*SeriesInfo, error) {
+	return nil, nil
+}
