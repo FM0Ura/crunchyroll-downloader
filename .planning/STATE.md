@@ -5,15 +5,15 @@ milestone_name: Storage, CLI & Error Handling
 current_phase: 07
 current_phase_name: Organized Output + Folder Metadata
 status: executing
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-07-10T22:53:22.896Z"
-last_activity: 2026-07-10
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-07-11T14:05:57.825Z"
+last_activity: 2026-07-11
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 11
-  completed_plans: 9
-  percent: 20
+  completed_plans: 11
+  percent: 40
 ---
 
 # Project State
@@ -65,7 +65,7 @@ Prior v1.0 Improvement & Optimization Pass shipped 2026-07-10 (Phases 1-5, all c
 | 260709-uw6 | Move config JSON from XDG directory to project root (./config.json) | 2026-07-10 | 7bc96eb | [260709-uw6-move-config-json-from-xdg-directory-to-p](./quick/260709-uw6-move-config-json-from-xdg-directory-to-p/) |
 | 260709-v3w | Fix speed display unit — Bps() used newest instead of oldest sample timestamp | 2026-07-10 | 0167928 | [260709-v3w-fix-speed-display-unit-bps-uses-wrong-ol](./quick/260709-v3w-fix-speed-display-unit-bps-uses-wrong-ol/) |
 
-Last activity: 2026-07-10
+Last activity: 2026-07-11
 
 ## Next Action
 
@@ -80,17 +80,17 @@ See: .planning/PROJECT.md (updated 2026-07-10)
 
 ## Current Position
 
-Phase: 07 (Organized Output + Folder Metadata) — EXECUTING
-Plan: 3 of 4
-Status: Ready to execute
-Last activity: 2026-07-10 — Phase 07 execution started
+Phase: 07 (Organized Output + Folder Metadata) — COMPLETE
+Plan: 4 of 4
+Status: Complete
+Last activity: 2026-07-11 — Phase 07 complete
 
-Progress: [░░░░░░░░░░] 0% (0/5 v1.1 phases)
+Progress: [████░░░░░░] 40% (2/5 v1.1 phases)
 
 ## Session
 
-**Last session:** 2026-07-10T22:53:17.860Z
-**Stopped at:** Completed 07-01-PLAN.md
+**Last session:** 2026-07-11T14:05:25.731Z
+**Stopped at:** Completed 07-04-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -103,6 +103,7 @@ Progress: [░░░░░░░░░░] 0% (0/5 v1.1 phases)
 | Phase 06 P07 | 3 min | 3 tasks | 3 files |
 | Phase 07 P01 | 1 min | 1 tasks | 2 files |
 | Phase 07 P02 | 1 min | 2 tasks | 2 files |
+| Phase 07 P04 | 7 min | 2 tasks | 7 files |
 
 ## Decisions
 
@@ -113,3 +114,5 @@ Progress: [░░░░░░░░░░] 0% (0/5 v1.1 phases)
 - [Phase 06]: [Phase 06 P07] Nil config slice => default fallback; explicit empty config array => empty slice to ERR-03 hard-error guard. Nil-vs-empty distinction preserved and tested.
 - [Phase ?]: D-05 fix: season_number mux metadata arg (mux.go:108) now sources SeasonNumber, not EpisodeNumber — proven by regression test with distinct Season=2/Episode=7
 - [Phase ?]: D-04: drop [{quality}] from on-disk MKV filename; *videoQuality param retained (07-02)
+- [Phase 07 P04]: Artwork URL extraction uses direct poster_url/backdrop_url fields from SeriesInfo, with EpisodeMetadata fallback for single-episode metadata.
+- [Phase 07 P04]: FetchArtwork allowlist is HTTPS only for .crunchyroll.com, .vmdcdn.com, and .akamaized.net; rejected URLs return ErrArtworkNotFound before network access.

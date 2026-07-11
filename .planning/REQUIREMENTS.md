@@ -32,7 +32,7 @@ Requirements for milestone v1.1 (Storage, CLI & Error Handling). Each maps to a 
 
 - [ ] **META-01**: User gets a `tvshow.nfo` at the series root so Jellyfin/Kodi/Emby display correct title/plot without relying on online scraper matching
 - [ ] **META-02**: User gets a per-episode `.nfo` alongside each `.mkv` with `<uniqueid type="crunchyroll">` for stable re-scrapes even when titles drift
-- [ ] **META-03**: User gets `poster.jpg`/`backdrop.jpg` artwork fetched from Crunchyroll API (non-fatal on 404, download still succeeds)
+- [x] **META-03**: User gets `poster.jpg`/`backdrop.jpg` artwork fetched from Crunchyroll API (non-fatal on 404, download still succeeds)
 
 ### Compression
 
@@ -111,7 +111,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OUT-03 | Phase 7 | Complete |
 | META-01 | Phase 7 | Pending |
 | META-02 | Phase 7 | Pending |
-| META-03 | Phase 7 | Pending |
+| META-03 | Phase 7 | Complete |
 | COMP-01 | Phase 8 | Pending |
 | COMP-02 | Phase 8 | Pending |
 | COMP-03 | Phase 8 | Pending |
