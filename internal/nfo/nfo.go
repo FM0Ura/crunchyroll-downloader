@@ -2,6 +2,7 @@ package nfo
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
 	"os"
 
@@ -21,19 +22,48 @@ var (
 // + contentID, returning the marshaled bytes (header-prepended). Split from
 // WriteEpisode so the escape cases (Pitfall 6) are testable without disk IO.
 // Uses info.EpisodeMetadata.SeasonNumber (NOT EpisodeNumber) for <season>.
-//
-// STUB for TDD RED phase — returns nil, nil so escape tests fail.
 func marshalEpisode(info *api.EpisodeInfo, contentID string) ([]byte, error) {
-	return nil, nil
+	doc := episodedetails{
+		Title:     info.Title,
+		ShowTitle: info.EpisodeMetadata.SeriesTitle,
+		Season:    info.EpisodeMetadata.SeasonNumber,
+		Episode:   info.EpisodeMetadata.EpisodeNumber,
+		Plot:      info.EpisodeMetadata.Description,
+		UniqueID: uniqueID{
+			Type:    "crunchyroll",
+			Default: true,
+			Value:   contentID,
+		},
+	}
+	out, err := xml.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("nfo episode marshal: %w", err)
+	}
+	out = append([]byte(xml.Header), out...)
+	return out, nil
 }
 
 // marshalTVShow builds the tvshow XML document from a SeriesInfo, returning
 // the marshaled bytes (header-prepended). The uniqueid chardata is info.ID
 // (the Crunchyroll series content id — D-08).
-//
-// STUB for TDD RED phase — returns nil, nil so escape tests fail.
 func marshalTVShow(info *api.SeriesInfo) ([]byte, error) {
-	return nil, nil
+	doc := tvshow{
+		Title:    info.Title,
+		Plot:     info.Description,
+		Genre:    info.Genres,
+		Studio:   info.Studio,
+		UniqueID: uniqueID{
+			Type:    "crunchyroll",
+			Default: true,
+			Value:   info.ID,
+		},
+	}
+	out, err := xml.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("nfo tvshow marshal: %w", err)
+	}
+	out = append([]byte(xml.Header), out...)
+	return out, nil
 }
 
 // WriteEpisode writes a per-episode .nfo at path from info + contentID.

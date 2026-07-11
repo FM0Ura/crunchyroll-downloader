@@ -46,7 +46,10 @@ func TestMarshalEpisodeEscaping(t *testing.T) {
 			title:       `"Quoted"`,
 			plot:        `say "hello"`,
 			contentID:  "EP-QUOTE",
-			wantContains:  []string{`&quot;`},
+			// encoding/xml escapes " as &#34; in element text (numeric char ref);
+			// &quot; is used for attribute values. Both are valid escaped forms.
+			// Assert the literal unescaped " does NOT appear inside <title>/<plot>.
+			wantNotContains: []string{`<title>"Quoted"`, `<plot>say "hello"`},
 		},
 		{
 			name:       "CJK multiplication sign preserved",
