@@ -103,6 +103,55 @@ func TestDownloadSubsUsesInjectedClientAndTempFile(t *testing.T) {
 	}
 }
 
+func TestDownloadSubsRejectsHTTPError(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("TMPDIR", tempDir)
+
+	client := fakeDoer(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusForbidden,
+			Body:       io.NopCloser(strings.NewReader("expired subtitle url")),
+		}, nil
+	})
+
+	filename, err := DownloadSubs(context.Background(), client, "https://subs.example/subs.ass")
+	if err == nil {
+		t.Fatalf("DownloadSubs() = %q, nil error; want HTTP status error", filename)
+	}
+	if !strings.Contains(err.Error(), "status 403") {
+		t.Fatalf("DownloadSubs() error = %q, want status 403", err)
+	}
+
+	matches, globErr := filepath.Glob(filepath.Join(tempDir, "crdl-subs-*.ass"))
+	if globErr != nil {
+		t.Fatalf("glob subtitle temp files: %v", globErr)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("subtitle temp files created on HTTP error: %v", matches)
+	}
+}
+
+func TestDownloadSubsRejectsIncompleteBody(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("TMPDIR", tempDir)
+
+	client := fakeDoer(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode:    http.StatusOK,
+			ContentLength: int64(len("[Script Info]\n") + 10),
+			Body:          io.NopCloser(strings.NewReader("[Script Info]\n")),
+		}, nil
+	})
+
+	filename, err := DownloadSubs(context.Background(), client, "https://subs.example/subs.ass")
+	if err == nil {
+		t.Fatalf("DownloadSubs() = %q, nil error; want incomplete body error", filename)
+	}
+	if !strings.Contains(err.Error(), "subtitle download incomplete") {
+		t.Fatalf("DownloadSubs() error = %q, want incomplete body error", err)
+	}
+}
+
 func TestGetFilenameReturnsCreateTempError(t *testing.T) {
 	missingTempDir := filepath.Join(t.TempDir(), "missing")
 	t.Setenv("TMPDIR", missingTempDir)

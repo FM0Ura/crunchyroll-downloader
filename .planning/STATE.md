@@ -64,6 +64,7 @@ Prior v1.0 Improvement & Optimization Pass shipped 2026-07-10 (Phases 1-5, all c
 | 260709-uq1 | Add .env file support with CRUNCHYROLL_ETP_RT, WIDEVINE_CLIENT_ID_PATH, WIDEVINE_DEVICE_PATH, WIDEVINE_PRIVATE_KEY_PATH, XDG_CONFIG_HOME, OUTPUT_DIR | 2026-07-10 | 46167ce | [260709-uq1-add-env-file-support-with-crunchyroll-et](./quick/260709-uq1-add-env-file-support-with-crunchyroll-et/) |
 | 260709-uw6 | Move config JSON from XDG directory to project root (./config.json) | 2026-07-10 | 7bc96eb | [260709-uw6-move-config-json-from-xdg-directory-to-p](./quick/260709-uw6-move-config-json-from-xdg-directory-to-p/) |
 | 260709-v3w | Fix speed display unit — Bps() used newest instead of oldest sample timestamp | 2026-07-10 | 0167928 | [260709-v3w-fix-speed-display-unit-bps-uses-wrong-ol](./quick/260709-v3w-fix-speed-display-unit-bps-uses-wrong-ol/) |
+| 260711-subtitle-integrity | Reject invalid or incomplete subtitle HTTP responses before muxing | 2026-07-11 | 39a5618 | [260711-fix-incomplete-subtitle-download](./quick/260711-fix-incomplete-subtitle-download/) |
 
 Last activity: 2026-07-11
 

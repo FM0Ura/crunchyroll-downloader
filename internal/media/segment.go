@@ -301,6 +301,10 @@ func formatETAShort(secs int) string {
 }
 
 func DownloadSubs(ctx context.Context, client httpDoer, url string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
@@ -315,9 +319,21 @@ func DownloadSubs(ctx context.Context, client httpDoer, url string) (string, err
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		detail := strings.TrimSpace(string(body))
+		if detail == "" {
+			return "", fmt.Errorf("subtitle download failed with status %d", resp.StatusCode)
+		}
+		return "", fmt.Errorf("subtitle download failed with status %d: %s", resp.StatusCode, detail)
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
+	}
+	if resp.ContentLength > 0 && int64(len(body)) != resp.ContentLength {
+		return "", fmt.Errorf("subtitle download incomplete: got %d bytes, expected %d", len(body), resp.ContentLength)
 	}
 
 	filename, err := getFilename(nil)
