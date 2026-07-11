@@ -7,10 +7,22 @@ import (
 
 	"crunchyroll-downloader/internal/api"
 	"crunchyroll-downloader/internal/diag"
+	"crunchyroll-downloader/internal/nfo"
 	"crunchyroll-downloader/internal/output"
 )
 
 type episodeDownloader func(ctx context.Context, client *api.Client, baseContentID string, info *api.EpisodeInfo, audioLangs, subsLangs []string, videoQuality, audioQuality *string, workers int, outputDir string, totalEpisodes int) error
+
+// seriesGetSeriesInfo / seriesWriteTvshowNfo are package-level seam vars
+// mirroring the episodeDownloader seam (season.go) and episodeMerge
+// (episode.go). Default to the real functions; tests override via
+// assignment + t.Cleanup restore.
+var (
+	seriesGetSeriesInfo = func(ctx context.Context, client *api.Client, seriesID, audioLocale, subLocale string) (*api.SeriesInfo, error) {
+		return client.GetSeriesInfo(ctx, seriesID, audioLocale, subLocale)
+	}
+	seriesWriteTvshowNfo = nfo.WriteTVShow
+)
 
 type episodeError struct {
 	Number int
@@ -50,6 +62,8 @@ func runSeason(ctx context.Context, client *api.Client, videoQuality, audioQuali
 	}
 
 	output.Global.Info("Downloading season %d of %s (%d episodes)", episodes[0].SeasonNumber, episodes[0].SeriesTitle, len(episodes))
+
+	// TDD RED placeholder: tvshow.nfo pre-loop call site added in GREEN commit.
 
 	var failures []episodeError
 	for _, ep := range episodes {

@@ -16,6 +16,7 @@ import (
 	"crunchyroll-downloader/internal/drm"
 	"crunchyroll-downloader/internal/media"
 	"crunchyroll-downloader/internal/mux"
+	"crunchyroll-downloader/internal/nfo"
 	"crunchyroll-downloader/internal/output"
 	"github.com/iyear/gowidevine"
 	"github.com/unki2aut/go-mpd"
@@ -44,6 +45,15 @@ var (
 		return media.DownloadSubs(ctx, client, url)
 	}
 	episodeMerge = mux.MergeEverything
+	// NFO seams (Phase 7): package-level indirection so download/episode.go tests
+	// can stub the emitter + the GetSeriesInfo call without a live HTTP server.
+	// Defaults point at the real functions; tests override via assignment +
+	// t.Cleanup restore (mirroring episodeMerge).
+	episodeWriteNfo       = nfo.WriteEpisode
+	episodeWriteTvshowNfo = nfo.WriteTVShow
+	episodeGetSeriesInfo  = func(ctx context.Context, client *api.Client, seriesID, audioLocale, subLocale string) (*api.SeriesInfo, error) {
+		return client.GetSeriesInfo(ctx, seriesID, audioLocale, subLocale)
+	}
 )
 
 func sanitizeFilename(s string) string {
@@ -346,6 +356,8 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 		return fmt.Errorf("muxing episode: %w", err)
 	}
 	completed = true
+
+	// TDD RED placeholder: NFO + tvshow.nfo call sites added in GREEN commit.
 
 	// Per-episode success result line
 	duration := time.Since(episodeStart).Round(time.Second)

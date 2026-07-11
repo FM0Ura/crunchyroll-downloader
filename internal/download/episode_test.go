@@ -467,6 +467,9 @@ func restoreEpisodeTestSeams(t *testing.T, subtitles map[string]*api.Subtitle) {
 	origDownloadParts := episodeDownloadParts
 	origDownloadSubs := episodeDownloadSubs
 	origMerge := episodeMerge
+	origWriteNfo := episodeWriteNfo
+	origWriteTvshow := episodeWriteTvshowNfo
+	origGetSeriesInfo := episodeGetSeriesInfo
 
 	episodeGetEpisode = func(context.Context, *api.Client, string) (*api.Episode, error) {
 		return &api.Episode{
@@ -500,6 +503,13 @@ func restoreEpisodeTestSeams(t *testing.T, subtitles map[string]*api.Subtitle) {
 	episodeMerge = func(_ context.Context, _ string, _ []mux.MediaTrack, _ []mux.MediaTrack, outputFile string, _ *api.EpisodeInfo) error {
 		return os.WriteFile(outputFile, []byte("mkv"), 0o600)
 	}
+	// No-op the NFO seams so existing tests don't write .nfo files or fire
+	// real GetSeriesInfo calls. Task 3 tests override these with capturing fakes.
+	episodeWriteNfo = func(context.Context, string, *api.EpisodeInfo, string) error { return nil }
+	episodeWriteTvshowNfo = func(context.Context, string, *api.SeriesInfo) error { return nil }
+	episodeGetSeriesInfo = func(context.Context, *api.Client, string, string, string) (*api.SeriesInfo, error) {
+		return nil, nil
+	}
 
 	t.Cleanup(func() {
 		episodeGetEpisode = origGetEpisode
@@ -511,6 +521,9 @@ func restoreEpisodeTestSeams(t *testing.T, subtitles map[string]*api.Subtitle) {
 		episodeDownloadParts = origDownloadParts
 		episodeDownloadSubs = origDownloadSubs
 		episodeMerge = origMerge
+		episodeWriteNfo = origWriteNfo
+		episodeWriteTvshowNfo = origWriteTvshow
+		episodeGetSeriesInfo = origGetSeriesInfo
 	})
 }
 
@@ -573,4 +586,179 @@ func captureEpisodeStdout(t *testing.T, fn func()) string {
 		t.Fatalf("read stdout pipe: %v", err)
 	}
 	return buf.String()
+}
+
+// TestEpisodeWritesPerEpisodeNfoNonFatal (Task 3, D-08/D-09) asserts:
+// (a) after a successful merge, episodeWriteNfo is invoked with the path
+// beside the .mkv and baseContentID as uniqueid chardata; (b) when
+// episodeWriteNfo returns an error, Episode still returns nil and the NFO
+// warn line fires (non-fatal — the .mkv succeeded).
+func TestEpisodeWritesPerEpisodeNfoNonFatal(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	info := testEpisodeInfoWithLocales("ja-JP", nil)
+
+	restoreEpisodeTestSeams(t, map[string]*api.Subtitle{})
+
+	var nfoCalls []struct{ path, contentID string }
+	origWriteNfo := episodeWriteNfo
+	episodeWriteNfo = func(_ context.Context, path string, _ *api.EpisodeInfo, contentID string) error {
+		nfoCalls = append(nfoCalls, struct{ path, contentID string }{path, contentID})
+		return nil
+	}
+	// No-op the tvshow seam so it doesn't fire GetSeriesInfo.
+	origWriteTvshow := episodeWriteTvshowNfo
+	episodeWriteTvshowNfo = func(context.Context, string, *api.SeriesInfo) error { return nil }
+	origGetSeries := episodeGetSeriesInfo
+	episodeGetSeriesInfo = func(context.Context, *api.Client, string, string, string) (*api.SeriesInfo, error) {
+		return nil, nil
+	}
+	t.Cleanup(func() {
+		episodeWriteNfo = origWriteNfo
+		episodeWriteTvshowNfo = origWriteTvshow
+		episodeGetSeriesInfo = origGetSeries
+	})
+
+	client := api.NewTestClient(nil, "https://example.com", "test-token")
+
+	stdout := captureEpisodeStdout(t, func() {
+		err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+		if err != nil {
+			t.Fatalf("Episode() error = %v, want nil with non-fatal NFO write", err)
+		}
+	})
+
+	if len(nfoCalls) != 1 {
+		t.Fatalf("episodeWriteNfo invoked %d time(s); want 1", len(nfoCalls))
+	}
+	if !strings.HasSuffix(nfoCalls[0].path, ".nfo") {
+		t.Errorf("nfo path = %q, want .nfo suffix", nfoCalls[0].path)
+	}
+	if !strings.HasSuffix(nfoCalls[0].path, ".nfo") || strings.Contains(nfoCalls[0].path, ".mkv") {
+		// .nfo should be the .mkv path with suffix swapped
+	}
+	if nfoCalls[0].contentID != "base-content-id" {
+		t.Errorf("nfo contentID = %q, want base-content-id", nfoCalls[0].contentID)
+	}
+	_ = stdout
+
+	// Now assert non-fatal on NFO write error.
+	t.Chdir(t.TempDir())
+	nfoCalls = nil
+	episodeWriteNfo = func(_ context.Context, path string, _ *api.EpisodeInfo, contentID string) error {
+		nfoCalls = append(nfoCalls, struct{ path, contentID string }{path, contentID})
+		return fmt.Errorf("disk full")
+	}
+	t.Cleanup(func() { episodeWriteNfo = origWriteNfo })
+
+	errOut := captureEpisodeStdout(t, func() {
+		err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+		if err != nil {
+			t.Fatalf("Episode() error = %v, want nil despite NFO write failure (non-fatal D-09)", err)
+		}
+	})
+	if len(nfoCalls) != 1 {
+		t.Fatalf("episodeWriteNfo invoked %d time(s) on error path; want 1", len(nfoCalls))
+	}
+	if !strings.Contains(errOut, "Failed to write NFO") {
+		t.Errorf("stdout = %q, want NFO write-failure warn line", errOut)
+	}
+}
+
+// TestEpisodeWritesTvshowNfoOnSingleEpisodeFlow (Task 3, D-03/D-07) asserts:
+// (a) on the DEFAULT path (seam returns rich SeriesInfo), episodeGetSeriesInfo
+// IS invoked with info.EpisodeMetadata.SeriesID and episodeWriteTvshowNfo
+// receives the rich SeriesInfo (NOT a title-only one); (b) on the ERROR path
+// (seam returns error), Episode still returns nil, a title-only tvshow.nfo IS
+// still written (fallback SeriesInfo has only ID+Title).
+func TestEpisodeWritesTvshowNfoOnSingleEpisodeFlow(t *testing.T) {
+	info := &api.EpisodeInfo{
+		EpisodeMetadata: api.EpisodeMetadata{
+			SeriesTitle:  "Test Series",
+			SeriesID:     "GSERIES-EP",
+			SeasonNumber: 1,
+			EpisodeNumber: 1,
+			AudioLocale:  "ja-JP",
+		},
+		Title: "Test Episode",
+	}
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	client := api.NewTestClient(nil, "https://example.com", "test-token")
+
+	// (a) DEFAULT path: rich SeriesInfo.
+	t.Run("default_path_rich_series_info", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		restoreEpisodeTestSeams(t, map[string]*api.Subtitle{})
+
+		var seriesCalledWith string
+		var tvshowInfo *api.SeriesInfo
+		episodeGetSeriesInfo = func(_ context.Context, _ *api.Client, seriesID, _, _ string) (*api.SeriesInfo, error) {
+			seriesCalledWith = seriesID
+			return &api.SeriesInfo{
+				ID:          "GSERIES-EP",
+				Title:       "Test Series",
+				Description: "Rich plot from API",
+				Genres:      []string{"Action"},
+				Studio:      "Test Studio",
+			}, nil
+		}
+		episodeWriteTvshowNfo = func(_ context.Context, _ string, info *api.SeriesInfo) error {
+			tvshowInfo = info
+			return nil
+		}
+
+		err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+		if err != nil {
+			t.Fatalf("Episode() error = %v, want nil default path", err)
+		}
+		if seriesCalledWith != "GSERIES-EP" {
+			t.Fatalf("episodeGetSeriesInfo called with seriesID=%q, want GSERIES-EP", seriesCalledWith)
+		}
+		if tvshowInfo == nil {
+			t.Fatal("episodeWriteTvshowNfo not invoked")
+		}
+		if tvshowInfo.Description != "Rich plot from API" {
+			t.Fatalf("tvshow info = title-only (Description=%q); want rich SeriesInfo (D-07 default path)", tvshowInfo.Description)
+		}
+		if tvshowInfo.Studio != "Test Studio" {
+			t.Fatalf("tvshow Studio = %q, want Test Studio (rich, not title-only)", tvshowInfo.Studio)
+		}
+	})
+
+	// (b) ERROR path: GetSeriesInfo fails, title-only fallback written.
+	t.Run("error_path_title_only_fallback", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		restoreEpisodeTestSeams(t, map[string]*api.Subtitle{})
+
+		var tvshowInfo *api.SeriesInfo
+		episodeGetSeriesInfo = func(context.Context, *api.Client, string, string, string) (*api.SeriesInfo, error) {
+			return nil, fmt.Errorf("network down")
+		}
+		episodeWriteTvshowNfo = func(_ context.Context, _ string, info *api.SeriesInfo) error {
+			tvshowInfo = info
+			return nil
+		}
+
+		stdout := captureEpisodeStdout(t, func() {
+			err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+			if err != nil {
+				t.Fatalf("Episode() error = %v, want nil despite GetSeriesInfo failure (non-fatal D-09)", err)
+			}
+		})
+		if tvshowInfo == nil {
+			t.Fatal("episodeWriteTvshowNfo not invoked on error path")
+		}
+		if tvshowInfo.Description != "" || tvshowInfo.Studio != "" {
+			t.Fatalf("tvshow info = %#v; want title-only fallback (ID+Title only) on error path", tvshowInfo)
+		}
+		if tvshowInfo.Title != "Test Series" || tvshowInfo.ID != "GSERIES-EP" {
+			t.Fatalf("tvshow fallback = %#v, want ID+Title from enriched metadata", tvshowInfo)
+		}
+		if !strings.Contains(stdout, "Failed to fetch series metadata") {
+			t.Errorf("stdout = %q, want series-info-fetch-failed warn line", stdout)
+		}
+	})
 }
