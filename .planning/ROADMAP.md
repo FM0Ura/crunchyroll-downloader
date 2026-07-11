@@ -26,7 +26,7 @@
 **Milestone Goal:** Reduce storage footprint via opt-in compression, modernize the CLI with a Bubble Tea TUI, harden download error handling for missing tracks, organize output into Jellyfin-friendly folders with NFO metadata, and add structured strategic logging for diagnostics.
 
 - [x] **Phase 6: Track Hardening + Structured Logging** - Graceful missing-track handling and configurable slog diagnostics with PII redaction (completed 2026-07-10)
-- [x] **Phase 7: Organized Output + Folder Metadata** - Jellyfin folder layout, NFO metadata, artwork, and the season_number bug fix (completed 2026-07-11)
+- [ ] **Phase 7: Organized Output + Folder Metadata** - Jellyfin folder layout, NFO metadata, artwork, and the season_number bug fix (human verification pending)
 - [ ] **Phase 8: Compression Presets** - Intent-named opt-in post-mux re-encode presets gated on a >=20% size-reduction spike
 - [ ] **Phase 9: Output Reporter Seam** - Mechanical interface refactor decoupling progress producers from renderers (unblocks TUI)
 - [ ] **Phase 10: Bubble Tea TUI** - Interactive TUI with live progress, episode checklist, and track picker
@@ -79,6 +79,7 @@
   5. User gets `poster.jpg`/`backdrop.jpg` when available; a 404 on artwork does not fail the download
 
 **Plans**: 4/4 plans complete
+**Verification**: Human verification pending (`07-UAT.md`)
 **Wave 1**
 
 - [x] 07-01-PLAN.md — OUT-03 season_number bug fix at internal/mux/mux.go:108 (D-05) + regression test
@@ -149,7 +150,7 @@ Phases execute in numeric order continuing from v1.0: 6 → 7 → 8 → 9 → 10
 | 4. UX — Progress & Output | v1.0 | 3/3 | Complete | 2026-07-10 |
 | 5. Testing & Quality | v1.0 | 2/2 | Complete | 2026-07-10 |
 | 6. Track Hardening + Structured Logging | v1.1 | 7/7 | Complete    | 2026-07-10 |
-| 7. Organized Output + Folder Metadata | v1.1 | 4/4 | Complete   | 2026-07-11 |
+| 7. Organized Output + Folder Metadata | v1.1 | 4/4 | Human verification | - |
 | 8. Compression Presets | v1.1 | 0/TBD | Not started | - |
 | 9. Output Reporter Seam | v1.1 | 0/TBD | Not started | - |
 | 10. Bubble Tea TUI | v1.1 | 0/TBD | Not started | - |
