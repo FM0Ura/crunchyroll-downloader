@@ -229,6 +229,34 @@ func TestMergeEverythingSetsCorrectSeasonNumber(t *testing.T) {
 	}
 }
 
+func TestMergeEverythingUsesCustomSubtitleTitle(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args.txt")
+	restoreFFmpegCommandWithArgCapture(t, "0", "", argsFile)
+
+	videoFile := writeTempFile(t, dir, "video.mp4")
+	subFile := writeTempFile(t, dir, "subtitle.ass")
+	outputFile := filepath.Join(dir, "output.mkv")
+
+	subTracks := []MediaTrack{{
+		File:   subFile,
+		Locale: "pt-BR",
+		Title:  "Português (Brasil) (Português audio)",
+	}}
+	if err := MergeEverything(context.Background(), videoFile, nil, subTracks, outputFile, testEpisodeInfo()); err != nil {
+		t.Fatalf("MergeEverything() error = %v, want nil", err)
+	}
+
+	argsBytes, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("read captured args file: %v", err)
+	}
+	args := string(argsBytes)
+	if !strings.Contains(args, "title=Português (Brasil) (Português audio)") {
+		t.Fatalf("subtitle title metadata missing custom title; full args:\n%s", args)
+	}
+}
+
 func restoreFFmpegCommand(t *testing.T, exitCode, stderr string) {
 	t.Helper()
 	original := ffmpegCommand

@@ -182,6 +182,9 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 		return fmt.Errorf("fetching first episode: %w", err)
 	}
 	activeStreams[versions[0].contentId] = firstEpisode.Token
+	episodeByContentID := map[string]*api.Episode{
+		versions[0].contentId: firstEpisode,
+	}
 
 	if len(subsLangs) == 1 && subsLangs[0] == "all" {
 		subsLangs = make([]string, 0, len(firstEpisode.Subtitles))
@@ -196,8 +199,42 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 	output.Global.Info("Audio locales: %s | Subtitle locales: %s", strings.Join(audioLangs, ", "), strings.Join(subsLangs, ", "))
 
 	var subTracks []mux.MediaTrack
+	seenSubURLs := map[string]bool{}
 	for j, locale := range subsLangs {
-		if firstEpisode.Subtitles[locale] == nil {
+		type subtitleCandidate struct {
+			sub         *api.Subtitle
+			sourceAudio string
+			alternate   bool
+		}
+		var candidates []subtitleCandidate
+		if sub := firstEpisode.Subtitles[locale]; sub != nil && sub.URL != "" {
+			candidates = append(candidates, subtitleCandidate{sub: sub, sourceAudio: versions[0].locale})
+			seenSubURLs[locale+"\x00"+sub.URL] = true
+		}
+		for _, version := range versions {
+			if version.locale != locale || version.contentId == versions[0].contentId {
+				continue
+			}
+			episode, err := episodeGetEpisode(ctx, client, version.contentId)
+			if err != nil {
+				output.Global.Warn("Skipping %s subtitles from %s audio: %v", locale, mux.TrackTitle(version.locale), err)
+				if diag.DownloadLogger != nil {
+					diag.DownloadLogger.Warn("skipped subtitle source", "episode", info.EpisodeMetadata.EpisodeNumber, "locale", locale, "audio_locale", version.locale, "err", err)
+				}
+				continue
+			}
+			activeStreams[version.contentId] = episode.Token
+			episodeByContentID[version.contentId] = episode
+			if sub := episode.Subtitles[locale]; sub != nil && sub.URL != "" {
+				urlKey := locale + "\x00" + sub.URL
+				if !seenSubURLs[urlKey] {
+					candidates = append(candidates, subtitleCandidate{sub: sub, sourceAudio: version.locale, alternate: len(candidates) > 0})
+					seenSubURLs[urlKey] = true
+				}
+			}
+		}
+
+		if len(candidates) == 0 {
 			if j == 0 {
 				return fmt.Errorf("primary subtitle locale %s not available for episode %d", locale, info.EpisodeMetadata.EpisodeNumber)
 			}
@@ -208,13 +245,20 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 			skippedTracks = append(skippedTracks, locale+" sub")
 			continue
 		}
-		output.Global.Info("Downloading subtitles for %s...", mux.TrackTitle(locale))
-		file, err := episodeDownloadSubs(ctx, client, firstEpisode.Subtitles[locale].URL)
-		if err != nil {
-			return fmt.Errorf("downloading subtitles for %s: %w", locale, err)
+
+		for _, candidate := range candidates {
+			title := mux.TrackTitle(locale)
+			if candidate.alternate {
+				title = fmt.Sprintf("%s (%s audio)", title, mux.TrackTitle(candidate.sourceAudio))
+			}
+			output.Global.Info("Downloading subtitles for %s...", title)
+			file, err := episodeDownloadSubs(ctx, client, candidate.sub.URL)
+			if err != nil {
+				return fmt.Errorf("downloading subtitles for %s: %w", locale, err)
+			}
+			tempFiles = append(tempFiles, file)
+			subTracks = append(subTracks, mux.MediaTrack{File: file, Locale: locale, Title: title})
 		}
-		tempFiles = append(tempFiles, file)
-		subTracks = append(subTracks, mux.MediaTrack{File: file, Locale: locale})
 	}
 	if len(subTracks) > 0 {
 		output.Global.Info("Downloaded subtitles!")
@@ -286,16 +330,28 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 			g.Go(func() error {
 				manifest := media.GetCachedManifest(version.contentId)
 				var episodeToken string
+				var cachedEpisode *api.Episode
+				mu.Lock()
+				cachedEpisode = episodeByContentID[version.contentId]
+				if cachedEpisode != nil {
+					episodeToken = cachedEpisode.Token
+				}
+				mu.Unlock()
 				if manifest == nil {
-					episode, err := episodeGetEpisode(gctx, client, version.contentId)
-					if err != nil {
-						return fmt.Errorf("fetching episode for %s: %w", version.locale, err)
-					}
-					episodeToken = episode.Token
+					episode := cachedEpisode
+					if episode == nil {
+						var err error
+						episode, err = episodeGetEpisode(gctx, client, version.contentId)
+						if err != nil {
+							return fmt.Errorf("fetching episode for %s: %w", version.locale, err)
+						}
+						episodeToken = episode.Token
 
-					mu.Lock()
-					activeStreams[version.contentId] = episode.Token
-					mu.Unlock()
+						mu.Lock()
+						activeStreams[version.contentId] = episode.Token
+						episodeByContentID[version.contentId] = episode
+						mu.Unlock()
+					}
 
 					manifestData, err := episodeFetchManifest(gctx, client, episode.ManifestURL)
 					if err != nil {

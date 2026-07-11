@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -104,6 +105,72 @@ func TestEpisodeWarnsWhenDownloadedPartially(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "downloaded partially") || !strings.Contains(stdout, "es-419 sub") {
 		t.Fatalf("Episode() stdout = %q, want partial warning with skipped subtitle", stdout)
+	}
+}
+
+func TestEpisodeDownloadsAlternateSubtitleFromMatchingAudioVersion(t *testing.T) {
+	t.Chdir(t.TempDir())
+	restoreEpisodeTestSeams(t, map[string]*api.Subtitle{
+		"pt-BR": {Language: "pt-BR", URL: "https://example.com/pt-BR-full.ass"},
+	})
+
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	info := testEpisodeInfoWithLocales("ja-JP", []*api.DubVersion{
+		{AudioLocale: "pt-BR", GUID: "pt-br-guid"},
+	})
+	client := api.NewTestClient(nil, "https://example.com", "test-token")
+
+	getEpisodeCalls := map[string]int{}
+	episodeGetEpisode = func(_ context.Context, _ *api.Client, id string) (*api.Episode, error) {
+		getEpisodeCalls[id]++
+		subtitles := map[string]*api.Subtitle{
+			"pt-BR": {Language: "pt-BR", URL: "https://example.com/pt-BR-full.ass"},
+		}
+		if id == "pt-br-guid" {
+			subtitles = map[string]*api.Subtitle{
+				"pt-BR": {Language: "pt-BR", URL: "https://example.com/pt-BR-signs.ass"},
+			}
+		}
+		return &api.Episode{
+			ManifestURL: "https://example.com/manifest.mpd",
+			Subtitles:   subtitles,
+			Token:       "stream-token-" + id,
+		}, nil
+	}
+
+	var downloadedURLs []string
+	episodeDownloadSubs = func(_ context.Context, _ *api.Client, url string) (string, error) {
+		downloadedURLs = append(downloadedURLs, url)
+		return writeEpisodeTestFile(t, t.TempDir(), sanitizeFilename(filepath.Base(url))), nil
+	}
+
+	var capturedSubTracks []mux.MediaTrack
+	episodeMerge = func(_ context.Context, _ string, _ []mux.MediaTrack, subTracks []mux.MediaTrack, outputFile string, _ *api.EpisodeInfo) error {
+		capturedSubTracks = append([]mux.MediaTrack(nil), subTracks...)
+		return os.WriteFile(outputFile, []byte("mkv"), 0o600)
+	}
+
+	err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP", "pt-BR"}, []string{"pt-BR"}, &videoQuality, &audioQuality, 2, "", 1)
+	if err != nil {
+		t.Fatalf("Episode() error = %v, want nil", err)
+	}
+
+	wantURLs := []string{"https://example.com/pt-BR-full.ass", "https://example.com/pt-BR-signs.ass"}
+	if !slices.Equal(downloadedURLs, wantURLs) {
+		t.Fatalf("downloaded subtitle URLs = %v, want %v", downloadedURLs, wantURLs)
+	}
+	if len(capturedSubTracks) != 2 {
+		t.Fatalf("mux subtitle tracks = %d, want 2: %#v", len(capturedSubTracks), capturedSubTracks)
+	}
+	if capturedSubTracks[0].Title != "Português (Brasil)" {
+		t.Fatalf("primary subtitle title = %q, want Português (Brasil)", capturedSubTracks[0].Title)
+	}
+	if !strings.Contains(capturedSubTracks[1].Title, "Português (Brasil) audio") {
+		t.Fatalf("alternate subtitle title = %q, want audio-source suffix", capturedSubTracks[1].Title)
+	}
+	if getEpisodeCalls["pt-br-guid"] != 1 {
+		t.Fatalf("pt-BR playback fetched %d time(s), want 1 reused for subtitles and audio", getEpisodeCalls["pt-br-guid"])
 	}
 }
 

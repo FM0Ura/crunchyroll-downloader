@@ -16,6 +16,7 @@ import (
 type MediaTrack struct {
 	File   string
 	Locale string
+	Title  string
 }
 
 var ffmpegCommand = exec.CommandContext
@@ -80,9 +81,13 @@ func MergeEverything(ctx context.Context, videoFile string, audioTracks, subTrac
 		)
 	}
 	for j, sub := range subTracks {
+		title := sub.Title
+		if title == "" {
+			title = TrackTitle(sub.Locale)
+		}
 		args = append(args,
 			fmt.Sprintf("-metadata:s:s:%d", j), "language="+loc.LanguageCodes[sub.Locale],
-			fmt.Sprintf("-metadata:s:s:%d", j), "title="+TrackTitle(sub.Locale),
+			fmt.Sprintf("-metadata:s:s:%d", j), "title="+title,
 		)
 	}
 
