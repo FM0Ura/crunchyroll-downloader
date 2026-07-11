@@ -2,7 +2,7 @@
 quick_id: 260711-subtitle-integrity
 status: complete
 date: 2026-07-11
-commit: 39a5618
+commit: 0ecbc05
 ---
 
 # Quick Task 260711: Fix incomplete subtitle download handling
