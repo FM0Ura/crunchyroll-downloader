@@ -2,7 +2,7 @@
 quick_id: 260711-alt-audio-subs
 status: complete
 date: 2026-07-11
-commit: pending
+commit: ea83a7e
 ---
 
 # Quick Task 260711: Mux alternate audio-version subtitles
