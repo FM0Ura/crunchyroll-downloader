@@ -51,6 +51,20 @@ func TestFormatFailedList(t *testing.T) {
 }
 
 func TestRunSeasonContinuesAfterEpisodeFailure(t *testing.T) {
+	// Phase 7: runSeason now fetches series info (via seriesGetSeriesInfo) before
+	// the episode loop. This test passes a nil client + empty SeriesID, so stub
+	// the series-info + tvshow.nfo seams so the nil client is not dereferenced.
+	origGetSeries := seriesGetSeriesInfo
+	origWriteTvshow := seriesWriteTvshowNfo
+	seriesGetSeriesInfo = func(context.Context, *api.Client, string, string, string) (*api.SeriesInfo, error) {
+		return nil, fmt.Errorf("stub: nil client")
+	}
+	seriesWriteTvshowNfo = func(context.Context, string, *api.SeriesInfo) error { return nil }
+	t.Cleanup(func() {
+		seriesGetSeriesInfo = origGetSeries
+		seriesWriteTvshowNfo = origWriteTvshow
+	})
+
 	videoQuality := "1080p"
 	audioQuality := "192k"
 	episodes := []api.SeasonEpisode{

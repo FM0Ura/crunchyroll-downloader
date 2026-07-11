@@ -3,6 +3,8 @@ package download
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"crunchyroll-downloader/internal/api"
@@ -63,7 +65,53 @@ func runSeason(ctx context.Context, client *api.Client, videoQuality, audioQuali
 
 	output.Global.Info("Downloading season %d of %s (%d episodes)", episodes[0].SeasonNumber, episodes[0].SeriesTitle, len(episodes))
 
-	// TDD RED placeholder: tvshow.nfo pre-loop call site added in GREEN commit.
+	// D-07/D-09/D-02: once-per-series tvshow.nfo write BEFORE the episode loop.
+	// The series root is the SAME inline 3-line pattern as episode.go outputBase
+	// so tvshow.nfo and the Season NN folder are siblings at the series root.
+	// os.Stat guard (D-02 resumability): multi-season invocations skip re-fetch.
+	// DEFAULT path fires seriesGetSeriesInfo(episodes[0].SeriesID); title-only
+	// fallback is written ONLY when GetSeriesInfo errors (D-09 non-fatal).
+	cleanSeriesTitle := sanitizeFilename(episodes[0].SeriesTitle)
+	seriesRoot := cleanSeriesTitle
+	if outputDir != "" {
+		seriesRoot = filepath.Join(outputDir, cleanSeriesTitle)
+	}
+	if err := os.MkdirAll(seriesRoot, 0777); err != nil {
+		return fmt.Errorf("creating series directory: %w", err)
+	}
+	tvshowNfoPath := filepath.Join(seriesRoot, "tvshow.nfo")
+	if _, err := os.Stat(tvshowNfoPath); err != nil {
+		seriesID := episodes[0].SeriesID
+		seriesInfo, serr := seriesGetSeriesInfo(ctx, client, seriesID, "", "")
+		if serr != nil || seriesInfo == nil {
+			if serr != nil {
+				output.Global.Warn("Failed to fetch series metadata for %s: %v", episodes[0].SeriesTitle, serr)
+				if diag.ApiLogger != nil {
+					diag.ApiLogger.Warn("series_info_fetch_failed", "series", episodes[0].SeriesTitle, "err", serr)
+				}
+			} else {
+				output.Global.Warn("No series metadata returned for %s", episodes[0].SeriesTitle)
+			}
+			// Title-only error-fallback (D-09): write a tvshow.nfo regardless.
+			fallbackInfo := &api.SeriesInfo{
+				ID:    seriesID,
+				Title: episodes[0].SeriesTitle,
+			}
+			if werr := seriesWriteTvshowNfo(ctx, tvshowNfoPath, fallbackInfo); werr != nil {
+				output.Global.Warn("Failed to write tvshow.nfo for %s: %v", episodes[0].SeriesTitle, werr)
+				if diag.MuxLogger != nil {
+					diag.MuxLogger.Warn("tvshow_nfo_write_failed", "path", tvshowNfoPath, "err", werr)
+				}
+			}
+		} else {
+			if werr := seriesWriteTvshowNfo(ctx, tvshowNfoPath, seriesInfo); werr != nil {
+				output.Global.Warn("Failed to write tvshow.nfo for %s: %v", episodes[0].SeriesTitle, werr)
+				if diag.MuxLogger != nil {
+					diag.MuxLogger.Warn("tvshow_nfo_write_failed", "path", tvshowNfoPath, "err", werr)
+				}
+			}
+		}
+	}
 
 	var failures []episodeError
 	for _, ep := range episodes {

@@ -357,7 +357,54 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 	}
 	completed = true
 
-	// TDD RED placeholder: NFO + tvshow.nfo call sites added in GREEN commit.
+	// D-08/D-09: write per-episode .nfo beside the .mkv (non-fatal).
+	// The .nfo path is strings.TrimSuffix(outputFile, ".mkv") + ".nfo".
+	// NFO write failure never aborts the download — warn on both channels.
+	nfoPath := strings.TrimSuffix(outputFile, ".mkv") + ".nfo"
+	if err := episodeWriteNfo(ctx, nfoPath, info, baseContentID); err != nil {
+		output.Global.Warn("Failed to write NFO for %s: %v", info.Title, err)
+		if diag.MuxLogger != nil {
+			diag.MuxLogger.Warn("nfo_write_failed", "episode", info.EpisodeMetadata.EpisodeNumber, "path", nfoPath, "err", err)
+		}
+	}
+
+	// D-03 + D-07 (LOCKED): single-episode tvshow.nfo at the series root.
+	// os.Stat guard (D-02 resumability): a re-run skips the re-fetch.
+	// DEFAULT path fires episodeGetSeriesInfo(info.EpisodeMetadata.SeriesID);
+	// title-only fallback is written ONLY when GetSeriesInfo errors (D-09).
+	tvshowNfoPath := filepath.Join(outputBase, "tvshow.nfo")
+	if _, err := os.Stat(tvshowNfoPath); err != nil {
+		seriesInfo, serr := episodeGetSeriesInfo(ctx, client, info.EpisodeMetadata.SeriesID, "", "")
+		if serr != nil || seriesInfo == nil {
+			if serr != nil {
+				output.Global.Warn("Failed to fetch series metadata for %s: %v", info.EpisodeMetadata.SeriesTitle, serr)
+				if diag.ApiLogger != nil {
+					diag.ApiLogger.Warn("series_info_fetch_failed", "series", info.EpisodeMetadata.SeriesTitle, "err", serr)
+				}
+			} else {
+				output.Global.Warn("No series metadata returned for %s", info.EpisodeMetadata.SeriesTitle)
+			}
+			// Title-only error-fallback (D-09): still write a tvshow.nfo so
+			// Jellyfin/Kodi have SOMETHING; a write error here also non-fatal-warns.
+			fallbackInfo := &api.SeriesInfo{
+				ID:    info.EpisodeMetadata.SeriesID,
+				Title: info.EpisodeMetadata.SeriesTitle,
+			}
+			if werr := episodeWriteTvshowNfo(ctx, tvshowNfoPath, fallbackInfo); werr != nil {
+				output.Global.Warn("Failed to write tvshow.nfo for %s: %v", info.EpisodeMetadata.SeriesTitle, werr)
+				if diag.MuxLogger != nil {
+					diag.MuxLogger.Warn("tvshow_nfo_write_failed", "path", tvshowNfoPath, "err", werr)
+				}
+			}
+		} else {
+			if werr := episodeWriteTvshowNfo(ctx, tvshowNfoPath, seriesInfo); werr != nil {
+				output.Global.Warn("Failed to write tvshow.nfo for %s: %v", info.EpisodeMetadata.SeriesTitle, werr)
+				if diag.MuxLogger != nil {
+					diag.MuxLogger.Warn("tvshow_nfo_write_failed", "path", tvshowNfoPath, "err", werr)
+				}
+			}
+		}
+	}
 
 	// Per-episode success result line
 	duration := time.Since(episodeStart).Round(time.Second)
