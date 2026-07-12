@@ -21,6 +21,8 @@ vendor/
 # === Test / Coverage ===
 coverage.out
 *.out
+logs/
+*.txt
 
 # === Environment variables ===
 .env
