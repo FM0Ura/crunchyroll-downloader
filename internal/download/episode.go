@@ -72,7 +72,7 @@ func sanitizeFilename(s string) string {
 	return strings.TrimRight(res, " .")
 }
 
-func Episode(ctx context.Context, client *api.Client, baseContentID string, info *api.EpisodeInfo, audioLangs, subsLangs []string, videoQuality, audioQuality *string, workers int, outputDir string, totalEpisodes int) error {
+func Episode(ctx context.Context, client *api.Client, baseContentID string, info *api.EpisodeInfo, audioLangs, subsLangs []string, videoQuality, audioQuality *string, workers int, outputDir string, totalEpisodes int, generateJellyfinMetadata bool) error {
 	cleanSeriesTitle := sanitizeFilename(info.EpisodeMetadata.SeriesTitle)
 	cleanEpisodeTitle := sanitizeFilename(info.Title)
 
@@ -416,88 +416,90 @@ func Episode(ctx context.Context, client *api.Client, baseContentID string, info
 	}
 	completed = true
 
-	// D-08/D-09: write per-episode .nfo beside the .mkv (non-fatal).
-	// The .nfo path is strings.TrimSuffix(outputFile, ".mkv") + ".nfo".
-	// NFO write failure never aborts the download — warn on both channels.
-	nfoPath := strings.TrimSuffix(outputFile, ".mkv") + ".nfo"
-	if err := episodeWriteNfo(ctx, nfoPath, info, baseContentID); err != nil {
-		output.Global.Warn("Failed to write NFO for %s: %v", info.Title, err)
-		if diag.MuxLogger != nil {
-			diag.MuxLogger.Warn("nfo_write_failed", "episode", info.EpisodeMetadata.EpisodeNumber, "path", nfoPath, "err", err)
+	if generateJellyfinMetadata {
+		// D-08/D-09: write per-episode .nfo beside the .mkv (non-fatal).
+		// The .nfo path is strings.TrimSuffix(outputFile, ".mkv") + ".nfo".
+		// NFO write failure never aborts the download — warn on both channels.
+		nfoPath := strings.TrimSuffix(outputFile, ".mkv") + ".nfo"
+		if err := episodeWriteNfo(ctx, nfoPath, info, baseContentID); err != nil {
+			output.Global.Warn("Failed to write NFO for %s: %v", info.Title, err)
+			if diag.MuxLogger != nil {
+				diag.MuxLogger.Warn("nfo_write_failed", "episode", info.EpisodeMetadata.EpisodeNumber, "path", nfoPath, "err", err)
+			}
 		}
-	}
 
-	// D-03 + D-07 (LOCKED): single-episode tvshow.nfo at the series root.
-	// os.Stat guard (D-02 resumability): a re-run skips the re-fetch.
-	// DEFAULT path fires episodeGetSeriesInfo(info.EpisodeMetadata.SeriesID);
-	// title-only fallback is written ONLY when GetSeriesInfo errors (D-09).
-	tvshowNfoPath := filepath.Join(outputBase, "tvshow.nfo")
-	seriesInfo := (*api.SeriesInfo)(nil)
-	seriesInfoFetched := false
-	fetchSeriesInfo := func() (*api.SeriesInfo, error) {
-		if seriesInfoFetched {
-			return seriesInfo, nil
+		// D-03 + D-07 (LOCKED): single-episode tvshow.nfo at the series root.
+		// os.Stat guard (D-02 resumability): a re-run skips the re-fetch.
+		// DEFAULT path fires episodeGetSeriesInfo(info.EpisodeMetadata.SeriesID);
+		// title-only fallback is written ONLY when GetSeriesInfo errors (D-09).
+		tvshowNfoPath := filepath.Join(outputBase, "tvshow.nfo")
+		seriesInfo := (*api.SeriesInfo)(nil)
+		seriesInfoFetched := false
+		fetchSeriesInfo := func() (*api.SeriesInfo, error) {
+			if seriesInfoFetched {
+				return seriesInfo, nil
+			}
+			seriesInfoFetched = true
+			var err error
+			seriesInfo, err = episodeGetSeriesInfo(ctx, client, info.EpisodeMetadata.SeriesID, "", "")
+			return seriesInfo, err
 		}
-		seriesInfoFetched = true
-		var err error
-		seriesInfo, err = episodeGetSeriesInfo(ctx, client, info.EpisodeMetadata.SeriesID, "", "")
-		return seriesInfo, err
-	}
-	if _, err := os.Stat(tvshowNfoPath); err != nil {
-		seriesInfo, serr := fetchSeriesInfo()
-		if serr != nil || seriesInfo == nil {
-			if serr != nil {
-				output.Global.Warn("Failed to fetch series metadata for %s: %v", info.EpisodeMetadata.SeriesTitle, serr)
-				if diag.ApiLogger != nil {
-					diag.ApiLogger.Warn("series_info_fetch_failed", "series", info.EpisodeMetadata.SeriesTitle, "err", serr)
+		if _, err := os.Stat(tvshowNfoPath); err != nil {
+			seriesInfo, serr := fetchSeriesInfo()
+			if serr != nil || seriesInfo == nil {
+				if serr != nil {
+					output.Global.Warn("Failed to fetch series metadata for %s: %v", info.EpisodeMetadata.SeriesTitle, serr)
+					if diag.ApiLogger != nil {
+						diag.ApiLogger.Warn("series_info_fetch_failed", "series", info.EpisodeMetadata.SeriesTitle, "err", serr)
+					}
+				} else {
+					output.Global.Warn("No series metadata returned for %s", info.EpisodeMetadata.SeriesTitle)
+				}
+				// Title-only error-fallback (D-09): still write a tvshow.nfo so
+				// Jellyfin/Kodi have SOMETHING; a write error here also non-fatal-warns.
+				fallbackInfo := &api.SeriesInfo{
+					ID:    info.EpisodeMetadata.SeriesID,
+					Title: info.EpisodeMetadata.SeriesTitle,
+				}
+				if werr := episodeWriteTvshowNfo(ctx, tvshowNfoPath, fallbackInfo); werr != nil {
+					output.Global.Warn("Failed to write tvshow.nfo for %s: %v", info.EpisodeMetadata.SeriesTitle, werr)
+					if diag.MuxLogger != nil {
+						diag.MuxLogger.Warn("tvshow_nfo_write_failed", "path", tvshowNfoPath, "err", werr)
+					}
 				}
 			} else {
-				output.Global.Warn("No series metadata returned for %s", info.EpisodeMetadata.SeriesTitle)
-			}
-			// Title-only error-fallback (D-09): still write a tvshow.nfo so
-			// Jellyfin/Kodi have SOMETHING; a write error here also non-fatal-warns.
-			fallbackInfo := &api.SeriesInfo{
-				ID:    info.EpisodeMetadata.SeriesID,
-				Title: info.EpisodeMetadata.SeriesTitle,
-			}
-			if werr := episodeWriteTvshowNfo(ctx, tvshowNfoPath, fallbackInfo); werr != nil {
-				output.Global.Warn("Failed to write tvshow.nfo for %s: %v", info.EpisodeMetadata.SeriesTitle, werr)
-				if diag.MuxLogger != nil {
-					diag.MuxLogger.Warn("tvshow_nfo_write_failed", "path", tvshowNfoPath, "err", werr)
-				}
-			}
-		} else {
-			if werr := episodeWriteTvshowNfo(ctx, tvshowNfoPath, seriesInfo); werr != nil {
-				output.Global.Warn("Failed to write tvshow.nfo for %s: %v", info.EpisodeMetadata.SeriesTitle, werr)
-				if diag.MuxLogger != nil {
-					diag.MuxLogger.Warn("tvshow_nfo_write_failed", "path", tvshowNfoPath, "err", werr)
+				if werr := episodeWriteTvshowNfo(ctx, tvshowNfoPath, seriesInfo); werr != nil {
+					output.Global.Warn("Failed to write tvshow.nfo for %s: %v", info.EpisodeMetadata.SeriesTitle, werr)
+					if diag.MuxLogger != nil {
+						diag.MuxLogger.Warn("tvshow_nfo_write_failed", "path", tvshowNfoPath, "err", werr)
+					}
 				}
 			}
 		}
-	}
-	artwork := seriesArtworkFromInfo(seriesInfo)
-	if artwork.empty() {
-		artwork = seriesArtwork{
-			posterURL:   info.EpisodeMetadata.PosterURL,
-			backdropURL: info.EpisodeMetadata.BackdropURL,
-		}
-	}
-	if needsSeriesArtwork(outputBase) && artwork.empty() {
-		if _, serr := fetchSeriesInfo(); serr != nil {
-			output.Global.Warn("No artwork available for %s: %v", info.EpisodeMetadata.SeriesTitle, serr)
-			if diag.ApiLogger != nil {
-				diag.ApiLogger.Warn("artwork_fetch_failed", "series", info.EpisodeMetadata.SeriesTitle, "err", serr)
-			}
-		}
-		artwork = seriesArtworkFromInfo(seriesInfo)
+		artwork := seriesArtworkFromInfo(seriesInfo)
 		if artwork.empty() {
 			artwork = seriesArtwork{
 				posterURL:   info.EpisodeMetadata.PosterURL,
 				backdropURL: info.EpisodeMetadata.BackdropURL,
 			}
 		}
+		if needsSeriesArtwork(outputBase) && artwork.empty() {
+			if _, serr := fetchSeriesInfo(); serr != nil {
+				output.Global.Warn("No artwork available for %s: %v", info.EpisodeMetadata.SeriesTitle, serr)
+				if diag.ApiLogger != nil {
+					diag.ApiLogger.Warn("artwork_fetch_failed", "series", info.EpisodeMetadata.SeriesTitle, "err", serr)
+				}
+			}
+			artwork = seriesArtworkFromInfo(seriesInfo)
+			if artwork.empty() {
+				artwork = seriesArtwork{
+					posterURL:   info.EpisodeMetadata.PosterURL,
+					backdropURL: info.EpisodeMetadata.BackdropURL,
+				}
+			}
+		}
+		writeSeriesArtwork(ctx, client, info.EpisodeMetadata.SeriesTitle, outputBase, artwork, episodeFetchArtwork)
 	}
-	writeSeriesArtwork(ctx, client, info.EpisodeMetadata.SeriesTitle, outputBase, artwork, episodeFetchArtwork)
 
 	// Per-episode success result line
 	duration := time.Since(episodeStart).Round(time.Second)

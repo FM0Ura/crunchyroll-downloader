@@ -45,6 +45,7 @@ Pass them after the binary name:
 |-----------------------|--------|-------------|--------------------------------------------------------------------------|
 | `--url`               | string | —           | URL of the episode or series to download (required)                      |
 | `--file`              | string | —           | Path to a text file with one URL per line (alternative to `--url`)       |
+| `--urls`              | string | —           | Alias for `--file`                                                       |
 | `--audio-lang`        | string | `"ja-JP"`   | Audio language(s), comma-separated for multiple. First is the default.   |
 | `--subs-lang`         | string | `"en-US"`   | Subtitle language(s), comma-separated for multiple. First is the default.|
 | `--video-quality`     | string | `"1080p"`   | Desired video quality                                                    |
@@ -55,6 +56,7 @@ Pass them after the binary name:
 | `--workers`           | int    | `10`        | Number of concurrent segment download workers                            |
 | `--widevine-device`   | string | `""`        | Path to a `.wvd` file or a directory with `client_id.bin` + `private_key.pem` |
 | `--debug-manifest`    | bool   | `false`     | Log raw episode playback JSON and manifest XML                           |
+| `--jellyfin-metadata` | bool   | `false`     | Generate Jellyfin-compatible NFO metadata and artwork                     |
 | `--json`              | bool   | `false`     | Output progress as NDJSON                                                |
 | `--quiet`             | bool   | `false`     | Suppress progress output (errors still print)                            |
 
@@ -182,6 +184,7 @@ provided through any configuration layer:
 | Workers          | `10`        | `--workers`        | — (config file only) |
 | Output directory | `""` (CWD)  | `--output-dir`     | `OUTPUT_DIR`         |
 | Debug manifest   | `false`     | `--debug-manifest` | —                    |
+| Jellyfin metadata| `false`     | `--jellyfin-metadata` | —                 |
 | JSON output      | `false`     | `--json`           | —                    |
 | Quiet mode       | `false`     | `--quiet`          | —                    |
 

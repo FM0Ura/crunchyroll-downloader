@@ -10,6 +10,7 @@ You won't be banned or anything, I downloaded all Kaguya-Sama seasons to test du
 - Supports choosing the audio and video quality
 - Decrypts Widevine DRM (requires: a `.wvd` file or `client_id.bin` and `private_key.pem` files)
 - Adds metadata (like episode name) to the MKV container
+- Optionally generates Jellyfin-compatible NFO metadata and artwork
 - Parallel segment downloads (10 workers) for faster downloads
 - Retry with backoff on connection errors
 - Batch download from a list of URLs
@@ -44,6 +45,10 @@ Usage of ./crunchyroll-downloader:
         URL of the episode/season to download
   -file string
         Path to a text file with one URL per line
+  -urls string
+        Path to a text file with one URL per line (alias for --file)
+  -jellyfin-metadata
+        Generate Jellyfin-compatible NFO metadata and artwork
   -video-quality string
         Video quality (default "1080p")
 ```
@@ -61,6 +66,11 @@ To download a specific episode:
 To batch download from a file (one URL per line):
 ```shell
 ./crunchyroll-downloader --urls list.txt --etp-rt replace_this --subs-lang pt-BR
+```
+
+To generate Jellyfin-compatible `.nfo` files and series artwork:
+```shell
+./crunchyroll-downloader --url https://www.crunchyroll.com/watch/GE00198973JAJP/dawn-and-confusion --etp-rt replace_this --jellyfin-metadata
 ```
 
 To download multiple audio tracks and subtitles into a single file (the first of each is set as the default track). If any requested language is missing for an episode, that episode is skipped:

@@ -17,7 +17,7 @@ import (
 
 func TestProcessURLRejectsInvalidContentIDLength(t *testing.T) {
 	output := captureMainStderr(t, func() {
-		processURL(context.Background(), nil, "https://www.crunchyroll.com/watch/short/title", "", nil, nil)
+		processURL(context.Background(), nil, "https://www.crunchyroll.com/watch/short/title", "", nil, nil, false)
 	})
 
 	if !strings.Contains(output, "Invalid URL format") {
@@ -27,7 +27,7 @@ func TestProcessURLRejectsInvalidContentIDLength(t *testing.T) {
 
 func TestProcessURLRejectsUnsupportedContentType(t *testing.T) {
 	output := captureMainStderr(t, func() {
-		processURL(context.Background(), nil, "https://www.crunchyroll.com/browse/G123456789/title", "", nil, nil)
+		processURL(context.Background(), nil, "https://www.crunchyroll.com/browse/G123456789/title", "", nil, nil, false)
 	})
 
 	if !strings.Contains(output, "Invalid URL (must be /watch/ or /series/)") {
@@ -75,6 +75,26 @@ func TestResolveEtpRtReturnsEmptyWhenUnset(t *testing.T) {
 	result := resolveEtpRt(flags, "", nil)
 	if result != "" {
 		t.Fatalf("resolveEtpRt() = %q, want ''", result)
+	}
+}
+
+func TestResolveInputTargetsAcceptsURLsAlias(t *testing.T) {
+	rawURL, urlsFile, err := resolveInputTargets("", "", "list.txt")
+	if err != nil {
+		t.Fatalf("resolveInputTargets() error = %v, want nil", err)
+	}
+	if rawURL != "" || urlsFile != "list.txt" {
+		t.Fatalf("resolveInputTargets() = (%q, %q), want (%q, %q)", rawURL, urlsFile, "", "list.txt")
+	}
+}
+
+func TestResolveInputTargetsRejectsConflictingFileAliases(t *testing.T) {
+	_, _, err := resolveInputTargets("", "one.txt", "two.txt")
+	if err == nil {
+		t.Fatal("resolveInputTargets() error = nil, want conflict error")
+	}
+	if !strings.Contains(err.Error(), "--file and --urls") {
+		t.Fatalf("resolveInputTargets() error = %q, want alias conflict message", err)
 	}
 }
 
@@ -219,7 +239,7 @@ func TestProcessURLWatchPath(t *testing.T) {
 	cancel()
 
 	output := captureMainStderr(t, func() {
-		processURL(ctx, client, "https://www.crunchyroll.com/watch/G123456789", "", nil, nil)
+		processURL(ctx, client, "https://www.crunchyroll.com/watch/G123456789", "", nil, nil, false)
 	})
 
 	if !strings.Contains(output, "context canceled") {

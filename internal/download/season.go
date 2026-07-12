@@ -13,7 +13,7 @@ import (
 	"crunchyroll-downloader/internal/output"
 )
 
-type episodeDownloader func(ctx context.Context, client *api.Client, baseContentID string, info *api.EpisodeInfo, audioLangs, subsLangs []string, videoQuality, audioQuality *string, workers int, outputDir string, totalEpisodes int) error
+type episodeDownloader func(ctx context.Context, client *api.Client, baseContentID string, info *api.EpisodeInfo, audioLangs, subsLangs []string, videoQuality, audioQuality *string, workers int, outputDir string, totalEpisodes int, generateJellyfinMetadata bool) error
 
 // seriesGetSeriesInfo / seriesWriteTvshowNfo are package-level seam vars
 // mirroring the episodeDownloader seam (season.go) and episodeMerge
@@ -118,11 +118,11 @@ func formatFailedList(failures []episodeError) string {
 	return strings.Join(parts, "; ")
 }
 
-func Season(ctx context.Context, client *api.Client, videoQuality, audioQuality *string, audioLangs, subsLangs []string, episodes []api.SeasonEpisode, workers int, outputDir string) error {
-	return runSeason(ctx, client, videoQuality, audioQuality, audioLangs, subsLangs, episodes, workers, outputDir, Episode)
+func Season(ctx context.Context, client *api.Client, videoQuality, audioQuality *string, audioLangs, subsLangs []string, episodes []api.SeasonEpisode, workers int, outputDir string, generateJellyfinMetadata bool) error {
+	return runSeason(ctx, client, videoQuality, audioQuality, audioLangs, subsLangs, episodes, workers, outputDir, generateJellyfinMetadata, Episode)
 }
 
-func runSeason(ctx context.Context, client *api.Client, videoQuality, audioQuality *string, audioLangs, subsLangs []string, episodes []api.SeasonEpisode, workers int, outputDir string, downloadEpisode episodeDownloader) error {
+func runSeason(ctx context.Context, client *api.Client, videoQuality, audioQuality *string, audioLangs, subsLangs []string, episodes []api.SeasonEpisode, workers int, outputDir string, generateJellyfinMetadata bool, downloadEpisode episodeDownloader) error {
 	if len(episodes) == 0 {
 		return nil
 	}
@@ -143,59 +143,61 @@ func runSeason(ctx context.Context, client *api.Client, videoQuality, audioQuali
 	if err := os.MkdirAll(seriesRoot, 0777); err != nil {
 		return fmt.Errorf("creating series directory: %w", err)
 	}
-	seriesInfo := (*api.SeriesInfo)(nil)
-	seriesInfoFetched := false
-	fetchSeriesInfo := func() (*api.SeriesInfo, error) {
-		if seriesInfoFetched {
-			return seriesInfo, nil
+	if generateJellyfinMetadata {
+		seriesInfo := (*api.SeriesInfo)(nil)
+		seriesInfoFetched := false
+		fetchSeriesInfo := func() (*api.SeriesInfo, error) {
+			if seriesInfoFetched {
+				return seriesInfo, nil
+			}
+			seriesInfoFetched = true
+			var err error
+			seriesInfo, err = seriesGetSeriesInfo(ctx, client, episodes[0].SeriesID, "", "")
+			return seriesInfo, err
 		}
-		seriesInfoFetched = true
-		var err error
-		seriesInfo, err = seriesGetSeriesInfo(ctx, client, episodes[0].SeriesID, "", "")
-		return seriesInfo, err
-	}
-	tvshowNfoPath := filepath.Join(seriesRoot, "tvshow.nfo")
-	if _, err := os.Stat(tvshowNfoPath); err != nil {
-		seriesID := episodes[0].SeriesID
-		seriesInfo, serr := fetchSeriesInfo()
-		if serr != nil || seriesInfo == nil {
-			if serr != nil {
-				output.Global.Warn("Failed to fetch series metadata for %s: %v", episodes[0].SeriesTitle, serr)
-				if diag.ApiLogger != nil {
-					diag.ApiLogger.Warn("series_info_fetch_failed", "series", episodes[0].SeriesTitle, "err", serr)
+		tvshowNfoPath := filepath.Join(seriesRoot, "tvshow.nfo")
+		if _, err := os.Stat(tvshowNfoPath); err != nil {
+			seriesID := episodes[0].SeriesID
+			seriesInfo, serr := fetchSeriesInfo()
+			if serr != nil || seriesInfo == nil {
+				if serr != nil {
+					output.Global.Warn("Failed to fetch series metadata for %s: %v", episodes[0].SeriesTitle, serr)
+					if diag.ApiLogger != nil {
+						diag.ApiLogger.Warn("series_info_fetch_failed", "series", episodes[0].SeriesTitle, "err", serr)
+					}
+				} else {
+					output.Global.Warn("No series metadata returned for %s", episodes[0].SeriesTitle)
+				}
+				// Title-only error-fallback (D-09): write a tvshow.nfo regardless.
+				fallbackInfo := &api.SeriesInfo{
+					ID:    seriesID,
+					Title: episodes[0].SeriesTitle,
+				}
+				if werr := seriesWriteTvshowNfo(ctx, tvshowNfoPath, fallbackInfo); werr != nil {
+					output.Global.Warn("Failed to write tvshow.nfo for %s: %v", episodes[0].SeriesTitle, werr)
+					if diag.MuxLogger != nil {
+						diag.MuxLogger.Warn("tvshow_nfo_write_failed", "path", tvshowNfoPath, "err", werr)
+					}
 				}
 			} else {
-				output.Global.Warn("No series metadata returned for %s", episodes[0].SeriesTitle)
-			}
-			// Title-only error-fallback (D-09): write a tvshow.nfo regardless.
-			fallbackInfo := &api.SeriesInfo{
-				ID:    seriesID,
-				Title: episodes[0].SeriesTitle,
-			}
-			if werr := seriesWriteTvshowNfo(ctx, tvshowNfoPath, fallbackInfo); werr != nil {
-				output.Global.Warn("Failed to write tvshow.nfo for %s: %v", episodes[0].SeriesTitle, werr)
-				if diag.MuxLogger != nil {
-					diag.MuxLogger.Warn("tvshow_nfo_write_failed", "path", tvshowNfoPath, "err", werr)
-				}
-			}
-		} else {
-			if werr := seriesWriteTvshowNfo(ctx, tvshowNfoPath, seriesInfo); werr != nil {
-				output.Global.Warn("Failed to write tvshow.nfo for %s: %v", episodes[0].SeriesTitle, werr)
-				if diag.MuxLogger != nil {
-					diag.MuxLogger.Warn("tvshow_nfo_write_failed", "path", tvshowNfoPath, "err", werr)
+				if werr := seriesWriteTvshowNfo(ctx, tvshowNfoPath, seriesInfo); werr != nil {
+					output.Global.Warn("Failed to write tvshow.nfo for %s: %v", episodes[0].SeriesTitle, werr)
+					if diag.MuxLogger != nil {
+						diag.MuxLogger.Warn("tvshow_nfo_write_failed", "path", tvshowNfoPath, "err", werr)
+					}
 				}
 			}
 		}
-	}
-	if needsSeriesArtwork(seriesRoot) {
-		if _, serr := fetchSeriesInfo(); serr != nil {
-			output.Global.Warn("No artwork available for %s: %v", episodes[0].SeriesTitle, serr)
-			if diag.ApiLogger != nil {
-				diag.ApiLogger.Warn("artwork_fetch_failed", "series", episodes[0].SeriesTitle, "err", serr)
+		if needsSeriesArtwork(seriesRoot) {
+			if _, serr := fetchSeriesInfo(); serr != nil {
+				output.Global.Warn("No artwork available for %s: %v", episodes[0].SeriesTitle, serr)
+				if diag.ApiLogger != nil {
+					diag.ApiLogger.Warn("artwork_fetch_failed", "series", episodes[0].SeriesTitle, "err", serr)
+				}
 			}
 		}
+		writeSeriesArtwork(ctx, client, episodes[0].SeriesTitle, seriesRoot, seriesArtworkFromInfo(seriesInfo), seriesFetchArtwork)
 	}
-	writeSeriesArtwork(ctx, client, episodes[0].SeriesTitle, seriesRoot, seriesArtworkFromInfo(seriesInfo), seriesFetchArtwork)
 
 	var failures []episodeError
 	for _, ep := range episodes {
@@ -211,7 +213,7 @@ func runSeason(ctx context.Context, client *api.Client, videoQuality, audioQuali
 			Title: ep.Title,
 		}
 
-		if err := downloadEpisode(ctx, client, ep.ID, info, audioLangs, subsLangs, videoQuality, audioQuality, workers, outputDir, len(episodes)); err != nil {
+		if err := downloadEpisode(ctx, client, ep.ID, info, audioLangs, subsLangs, videoQuality, audioQuality, workers, outputDir, len(episodes), generateJellyfinMetadata); err != nil {
 			output.Global.Error("[Episode %d/%d] %s ... ✗ %s", ep.EpisodeNumber, len(episodes), ep.Title, err.Error())
 			failures = append(failures, episodeError{
 				Number: ep.EpisodeNumber,

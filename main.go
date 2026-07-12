@@ -35,6 +35,7 @@ var (
 	quietMode     = flag.Bool("quiet", false, "Suppress progress output (errors still print)")
 	logLevel      = flag.String("log-level", "info", "Diagnostic log level (debug|info|warn|error)")
 	logFile       = flag.String("log-file", "", "Diagnostic log file path (default ./logs/animeheaven.log)")
+	jellyfinMeta  = flag.Bool("jellyfin-metadata", false, "Generate Jellyfin-compatible NFO metadata and artwork")
 )
 
 func parseLangs(s string) []string {
@@ -123,7 +124,7 @@ func validateAllURLs(urls []string) []invalidURL {
 	return invalid
 }
 
-func processURL(ctx context.Context, client *api.Client, rawURL string, outputDir string, audioLangs, subsLangs []string) {
+func processURL(ctx context.Context, client *api.Client, rawURL string, outputDir string, audioLangs, subsLangs []string, generateJellyfinMetadata bool) {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		output.Global.Error("Invalid URL: %v", err)
@@ -162,7 +163,7 @@ func processURL(ctx context.Context, client *api.Client, rawURL string, outputDi
 			output.Global.Error("Error fetching episode info: %v", err)
 			return
 		}
-		if err := download.Episode(ctx, client, contentID, info, audioLangs, subsLangs, videoQuality, audioQuality, *workers, outputDir, 1); err != nil {
+		if err := download.Episode(ctx, client, contentID, info, audioLangs, subsLangs, videoQuality, audioQuality, *workers, outputDir, 1, generateJellyfinMetadata); err != nil {
 			output.Global.Error("Error downloading episode: %v", err)
 		}
 	} else {
@@ -190,7 +191,7 @@ func processURL(ctx context.Context, client *api.Client, rawURL string, outputDi
 				output.Global.Error("Error fetching episodes: %v", err)
 				return
 			}
-			if err := download.Season(ctx, client, videoQuality, audioQuality, audioLangs, subsLangs, episodes, *workers, outputDir); err != nil {
+			if err := download.Season(ctx, client, videoQuality, audioQuality, audioLangs, subsLangs, episodes, *workers, outputDir, generateJellyfinMetadata); err != nil {
 				output.Global.Warn("Season completed with errors: %v", err)
 			}
 		} else {
@@ -202,7 +203,7 @@ func processURL(ctx context.Context, client *api.Client, rawURL string, outputDi
 					output.Global.Error("Error fetching episodes for season %v: %v", season.SeasonNumber, err)
 					continue
 				}
-				if err := download.Season(ctx, client, videoQuality, audioQuality, audioLangs, subsLangs, episodes, *workers, outputDir); err != nil {
+				if err := download.Season(ctx, client, videoQuality, audioQuality, audioLangs, subsLangs, episodes, *workers, outputDir, generateJellyfinMetadata); err != nil {
 					output.Global.Warn("Season %v completed with errors: %v", season.SeasonNumber, err)
 				}
 			}
@@ -270,6 +271,16 @@ func resolveEtpRt(explicitFlags map[string]bool, flagVal string, configVal *stri
 	return ""
 }
 
+func resolveInputTargets(rawURL, filePath, urlsPath string) (string, string, error) {
+	if filePath != "" && urlsPath != "" && filePath != urlsPath {
+		return "", "", fmt.Errorf("--file and --urls specify different files")
+	}
+	if urlsPath != "" {
+		filePath = urlsPath
+	}
+	return rawURL, filePath, nil
+}
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -280,9 +291,16 @@ func main() {
 
 	url := flag.String("url", "", "URL of the episode/season to download")
 	urlsFile := flag.String("file", "", "Path to a text file with one URL per line")
+	urlsFileAlias := flag.String("urls", "", "Path to a text file with one URL per line (alias for --file)")
 	flag.Parse()
 
-	if *url == "" && *urlsFile == "" {
+	resolvedURL, resolvedURLsFile, err := resolveInputTargets(*url, *urlsFile, *urlsFileAlias)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	if resolvedURL == "" && resolvedURLsFile == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -365,8 +383,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *urlsFile != "" {
-		file, err := os.Open(*urlsFile)
+	if resolvedURLsFile != "" {
+		file, err := os.Open(resolvedURLsFile)
 		if err != nil {
 			output.Global.Error("Failed to open URLs file: %s", err)
 			os.Exit(1)
@@ -394,10 +412,10 @@ func main() {
 		output.Global.Info("Found %d URLs to download\n", len(urls))
 		for i, u := range urls {
 			output.Global.Info("=== [%d/%d] %s ===", i+1, len(urls), u)
-			processURL(ctx, client, u, resolvedOutputDir, audioLangs, subsLangs)
+			processURL(ctx, client, u, resolvedOutputDir, audioLangs, subsLangs, *jellyfinMeta)
 			output.Global.Info("")
 		}
 	} else {
-		processURL(ctx, client, *url, resolvedOutputDir, audioLangs, subsLangs)
+		processURL(ctx, client, resolvedURL, resolvedOutputDir, audioLangs, subsLangs, *jellyfinMeta)
 	}
 }

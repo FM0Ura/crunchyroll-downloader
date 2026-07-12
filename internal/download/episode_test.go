@@ -33,7 +33,7 @@ func TestEpisodeReturnsErrorForUnavailableAudioLocale(t *testing.T) {
 		Title: "Test Episode",
 	}
 
-	err := Episode(context.Background(), nil, "base-content-id", info, []string{"en-US"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+	err := Episode(context.Background(), nil, "base-content-id", info, []string{"en-US"}, nil, &videoQuality, &audioQuality, 2, "", 1, false)
 	if err == nil {
 		t.Fatal("Episode() error = nil, want unavailable audio locale error")
 	}
@@ -52,7 +52,7 @@ func TestEpisodeSkipsUnavailableSecondaryAudioLocale(t *testing.T) {
 	client := api.NewTestClient(nil, "https://example.com", "test-token")
 
 	stdout := captureEpisodeStdout(t, func() {
-		err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP", "en-US"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+		err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP", "en-US"}, nil, &videoQuality, &audioQuality, 2, "", 1, false)
 		if err != nil {
 			t.Fatalf("Episode() error = %v, want nil with secondary audio skipped", err)
 		}
@@ -70,7 +70,7 @@ func TestEpisodeReturnsPrimaryAudioErrorBeforePostLoopGuard(t *testing.T) {
 	audioQuality := "192k"
 	info := testEpisodeInfoWithLocales("ja-JP", nil)
 
-	err := Episode(context.Background(), nil, "content-id", info, []string{"en-US", "es-419"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+	err := Episode(context.Background(), nil, "content-id", info, []string{"en-US", "es-419"}, nil, &videoQuality, &audioQuality, 2, "", 1, false)
 	if err == nil {
 		t.Fatal("Episode() error = nil, want primary audio locale error")
 	}
@@ -94,7 +94,7 @@ func TestEpisodeWarnsWhenDownloadedPartially(t *testing.T) {
 	client := api.NewTestClient(nil, "https://example.com", "test-token")
 
 	stdout := captureEpisodeStdout(t, func() {
-		err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP", "en-US"}, []string{"en-US", "es-419"}, &videoQuality, &audioQuality, 2, "", 1)
+		err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP", "en-US"}, []string{"en-US", "es-419"}, &videoQuality, &audioQuality, 2, "", 1, false)
 		if err != nil {
 			t.Fatalf("Episode() error = %v, want nil with secondary subtitle skipped", err)
 		}
@@ -151,7 +151,7 @@ func TestEpisodeDownloadsAlternateSubtitleFromMatchingAudioVersion(t *testing.T)
 		return os.WriteFile(outputFile, []byte("mkv"), 0o600)
 	}
 
-	err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP", "pt-BR"}, []string{"pt-BR"}, &videoQuality, &audioQuality, 2, "", 1)
+	err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP", "pt-BR"}, []string{"pt-BR"}, &videoQuality, &audioQuality, 2, "", 1, false)
 	if err != nil {
 		t.Fatalf("Episode() error = %v, want nil", err)
 	}
@@ -187,7 +187,7 @@ func TestEpisodeReturnsErrorWhenAudioLangsEmptyBeforeMux(t *testing.T) {
 	audioQuality := "192k"
 	info := testEpisodeInfoWithLocales("ja-JP", nil)
 
-	err := Episode(context.Background(), nil, "content-id", info, []string{}, nil, &videoQuality, &audioQuality, 2, "", 1)
+	err := Episode(context.Background(), nil, "content-id", info, []string{}, nil, &videoQuality, &audioQuality, 2, "", 1, false)
 	if err == nil {
 		t.Fatal("Episode() error = nil, want empty audio hard error")
 	}
@@ -237,7 +237,7 @@ func TestEpisodeSingleVersion(t *testing.T) {
 
 	client := api.NewTestClient(nil, "https://example.com", "test-token")
 
-	err := Episode(ctx, client, "content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+	err := Episode(ctx, client, "content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1, false)
 	if err == nil {
 		t.Fatal("Episode() error = nil, want error from single-version sequential path")
 	}
@@ -271,7 +271,7 @@ func TestEpisodeParallelAudio(t *testing.T) {
 
 	client := api.NewTestClient(nil, "https://example.com", "test-token")
 
-	err := Episode(ctx, client, "content-id", info, []string{"ja-JP", "en-US"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+	err := Episode(ctx, client, "content-id", info, []string{"ja-JP", "en-US"}, nil, &videoQuality, &audioQuality, 2, "", 1, false)
 	if err == nil {
 		t.Fatal("Episode() error = nil, want error from parallel or sequential path")
 	}
@@ -294,7 +294,7 @@ func TestEpisodeParallelAudioZeroVersions(t *testing.T) {
 		Title: "Test Episode",
 	}
 
-	err := Episode(context.Background(), nil, "content-id", info, []string{"fr-FR"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+	err := Episode(context.Background(), nil, "content-id", info, []string{"fr-FR"}, nil, &videoQuality, &audioQuality, 2, "", 1, false)
 	if err == nil {
 		t.Fatal("Episode() error = nil, want audio locale unavailable error")
 	}
@@ -349,7 +349,7 @@ func TestOutputDirCreatesSeriesSubfolderInOutputDir(t *testing.T) {
 
 	client := api.NewTestClient(nil, "https://example.com", "test-token")
 
-	err := Episode(ctx, client, "content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, outputDir, 1)
+	err := Episode(ctx, client, "content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, outputDir, 1, false)
 	if err == nil {
 		t.Fatal("Episode() error = nil, want error from cancelled context (GetEpisode)")
 	}
@@ -404,7 +404,7 @@ func TestEpisodeOutputSkipsAlreadyDownloadedInNestedLayout(t *testing.T) {
 	client := api.NewTestClient(nil, "https://example.com", "test-token")
 
 	stdout := captureEpisodeStdout(t, func() {
-		err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+		err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1, false)
 		if err != nil {
 			t.Fatalf("Episode() error = %v, want nil skip on already-downloaded deep path", err)
 		}
@@ -439,7 +439,7 @@ func TestEpisodeSingleEpisodeMirrorsSeasonLayout(t *testing.T) {
 
 	client := api.NewTestClient(nil, "https://example.com", "test-token")
 
-	if err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1); err != nil {
+	if err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1, false); err != nil {
 		t.Fatalf("Episode() error = %v, want nil single-episode run", err)
 	}
 
@@ -450,6 +450,38 @@ func TestEpisodeSingleEpisodeMirrorsSeasonLayout(t *testing.T) {
 	}
 	if strings.Contains(capturedOutputFile, "[") {
 		t.Fatalf("single-episode outputFile = %q, must NOT contain a quality bracket (D-04)", capturedOutputFile)
+	}
+}
+
+func TestEpisodeDoesNotGenerateJellyfinMetadataByDefault(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	info := testEpisodeInfoWithLocales("ja-JP", nil)
+	client := api.NewTestClient(nil, "https://example.com", "test-token")
+
+	restoreEpisodeTestSeams(t, map[string]*api.Subtitle{})
+	episodeWriteNfo = func(context.Context, string, *api.EpisodeInfo, string) error {
+		t.Fatal("episodeWriteNfo invoked with Jellyfin metadata disabled")
+		return nil
+	}
+	episodeWriteTvshowNfo = func(context.Context, string, *api.SeriesInfo) error {
+		t.Fatal("episodeWriteTvshowNfo invoked with Jellyfin metadata disabled")
+		return nil
+	}
+	episodeGetSeriesInfo = func(context.Context, *api.Client, string, string, string) (*api.SeriesInfo, error) {
+		t.Fatal("episodeGetSeriesInfo invoked with Jellyfin metadata disabled")
+		return nil, nil
+	}
+	episodeFetchArtwork = func(context.Context, *api.Client, string, string) error {
+		t.Fatal("episodeFetchArtwork invoked with Jellyfin metadata disabled")
+		return nil
+	}
+
+	err := Episode(context.Background(), client, "content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1, false)
+	if err != nil {
+		t.Fatalf("Episode() error = %v, want nil", err)
 	}
 }
 
@@ -694,7 +726,7 @@ func TestEpisodeWritesPerEpisodeNfoNonFatal(t *testing.T) {
 	client := api.NewTestClient(nil, "https://example.com", "test-token")
 
 	stdout := captureEpisodeStdout(t, func() {
-		err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+		err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1, true)
 		if err != nil {
 			t.Fatalf("Episode() error = %v, want nil with non-fatal NFO write", err)
 		}
@@ -724,7 +756,7 @@ func TestEpisodeWritesPerEpisodeNfoNonFatal(t *testing.T) {
 	t.Cleanup(func() { episodeWriteNfo = origWriteNfo })
 
 	errOut := captureEpisodeStdout(t, func() {
-		err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+		err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1, true)
 		if err != nil {
 			t.Fatalf("Episode() error = %v, want nil despite NFO write failure (non-fatal D-09)", err)
 		}
@@ -780,7 +812,7 @@ func TestEpisodeWritesTvshowNfoOnSingleEpisodeFlow(t *testing.T) {
 			return nil
 		}
 
-		err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+		err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1, true)
 		if err != nil {
 			t.Fatalf("Episode() error = %v, want nil default path", err)
 		}
@@ -813,7 +845,7 @@ func TestEpisodeWritesTvshowNfoOnSingleEpisodeFlow(t *testing.T) {
 		}
 
 		stdout := captureEpisodeStdout(t, func() {
-			err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+			err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1, true)
 			if err != nil {
 				t.Fatalf("Episode() error = %v, want nil despite GetSeriesInfo failure (non-fatal D-09)", err)
 			}
@@ -867,7 +899,7 @@ func TestEpisodeWritesArtworkOnSingleEpisodeFlow(t *testing.T) {
 	}
 
 	stdout := captureEpisodeStdout(t, func() {
-		err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1)
+		err := Episode(context.Background(), client, "base-content-id", info, []string{"ja-JP"}, nil, &videoQuality, &audioQuality, 2, "", 1, true)
 		if err != nil {
 			t.Fatalf("Episode() error = %v, want nil despite artwork 404", err)
 		}

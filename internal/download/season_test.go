@@ -13,7 +13,7 @@ import (
 )
 
 func TestRunSeasonEmptyEpisodes(t *testing.T) {
-	err := runSeason(context.Background(), nil, nil, nil, nil, nil, nil, 0, "", nil)
+	err := runSeason(context.Background(), nil, nil, nil, nil, nil, nil, 0, "", false, nil)
 	if err != nil {
 		t.Fatalf("runSeason(empty) error = %v, want nil", err)
 	}
@@ -91,13 +91,16 @@ func TestRunSeasonContinuesAfterEpisodeFailure(t *testing.T) {
 
 	firstErr := errors.New("first episode failed")
 	var calls []int
-	err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, "",
-		func(_ context.Context, _ *api.Client, _ string, info *api.EpisodeInfo, _ []string, _ []string, _ *string, _ *string, workers int, outputDir string, totalEpisodes int) error {
+	err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, "", false,
+		func(_ context.Context, _ *api.Client, _ string, info *api.EpisodeInfo, _ []string, _ []string, _ *string, _ *string, workers int, outputDir string, totalEpisodes int, generateJellyfinMetadata bool) error {
 			if workers != 2 {
 				t.Fatalf("workers = %d, want 2", workers)
 			}
 			if outputDir != "" {
 				t.Fatalf("outputDir = %q, want \"\"", outputDir)
+			}
+			if generateJellyfinMetadata {
+				t.Fatal("generateJellyfinMetadata = true, want false")
 			}
 			calls = append(calls, info.EpisodeMetadata.EpisodeNumber)
 			if info.EpisodeMetadata.EpisodeNumber == 1 {
@@ -124,6 +127,59 @@ func TestRunSeasonContinuesAfterEpisodeFailure(t *testing.T) {
 	}
 	if !errors.Is(err, firstErr) {
 		t.Fatalf("runSeason() error does not wrap first episode failure: %v", err)
+	}
+}
+
+func TestRunSeasonDoesNotGenerateJellyfinMetadataByDefault(t *testing.T) {
+	videoQuality := "1080p"
+	audioQuality := "192k"
+	episodes := []api.SeasonEpisode{
+		{
+			ID:            "episode-1",
+			SeriesTitle:   "Test Series",
+			SeriesID:      "GSERIES-OFF",
+			SeasonNumber:  1,
+			EpisodeNumber: 1,
+			AudioLocale:   "ja-JP",
+			Title:         "First",
+		},
+	}
+
+	origGetSeries := seriesGetSeriesInfo
+	origWriteTvshow := seriesWriteTvshowNfo
+	origFetchArtwork := seriesFetchArtwork
+	seriesGetSeriesInfo = func(context.Context, *api.Client, string, string, string) (*api.SeriesInfo, error) {
+		t.Fatal("seriesGetSeriesInfo invoked with Jellyfin metadata disabled")
+		return nil, nil
+	}
+	seriesWriteTvshowNfo = func(context.Context, string, *api.SeriesInfo) error {
+		t.Fatal("seriesWriteTvshowNfo invoked with Jellyfin metadata disabled")
+		return nil
+	}
+	seriesFetchArtwork = func(context.Context, *api.Client, string, string) error {
+		t.Fatal("seriesFetchArtwork invoked with Jellyfin metadata disabled")
+		return nil
+	}
+	t.Cleanup(func() {
+		seriesGetSeriesInfo = origGetSeries
+		seriesWriteTvshowNfo = origWriteTvshow
+		seriesFetchArtwork = origFetchArtwork
+	})
+
+	var episodeCalled bool
+	err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, "", false,
+		func(_ context.Context, _ *api.Client, _ string, _ *api.EpisodeInfo, _ []string, _ []string, _ *string, _ *string, _ int, _ string, _ int, generateJellyfinMetadata bool) error {
+			episodeCalled = true
+			if generateJellyfinMetadata {
+				t.Fatal("generateJellyfinMetadata passed to episode downloader = true, want false")
+			}
+			return nil
+		})
+	if err != nil {
+		t.Fatalf("runSeason() error = %v, want nil", err)
+	}
+	if !episodeCalled {
+		t.Fatal("runSeason() did not invoke episode downloader")
 	}
 }
 
@@ -171,8 +227,8 @@ func TestRunSeasonWritesTvshowNfoOnceBeforeEpisodeLoop(t *testing.T) {
 			seriesWriteTvshowNfo = origWriteTvshow
 		})
 
-		err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, "",
-			func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int) error {
+		err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, "", true,
+			func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int, bool) error {
 				return nil
 			})
 		if err != nil {
@@ -227,8 +283,8 @@ func TestRunSeasonWritesTvshowNfoOnceBeforeEpisodeLoop(t *testing.T) {
 			seriesWriteTvshowNfo = origWriteTvshow
 		})
 
-		err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, dir,
-			func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int) error {
+		err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, dir, true,
+			func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int, bool) error {
 				return nil
 			})
 		if err != nil {
@@ -274,8 +330,8 @@ func TestRunSeasonTvshowNfoNonFatal(t *testing.T) {
 	})
 
 	var epCalls int
-	err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, "",
-		func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int) error {
+	err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, "", true,
+		func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int, bool) error {
 			epCalls++
 			return nil
 		})
@@ -327,8 +383,8 @@ func TestRunSeasonWritesArtworkAtSeriesRoot(t *testing.T) {
 		seriesFetchArtwork = origFetchArtwork
 	})
 
-	err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, outputDir,
-		func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int) error {
+	err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, outputDir, true,
+		func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int, bool) error {
 			return nil
 		})
 	if err != nil {
@@ -381,8 +437,8 @@ func TestRunSeasonWritesArtworkNonFatalOn404(t *testing.T) {
 
 	var episodeCalls int
 	stdout := captureEpisodeStdout(t, func() {
-		err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, "",
-			func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int) error {
+		err := runSeason(context.Background(), nil, &videoQuality, &audioQuality, []string{"ja-JP"}, nil, episodes, 2, "", true,
+			func(context.Context, *api.Client, string, *api.EpisodeInfo, []string, []string, *string, *string, int, string, int, bool) error {
 				episodeCalls++
 				return nil
 			})
