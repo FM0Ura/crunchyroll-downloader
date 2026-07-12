@@ -28,7 +28,7 @@ This phase delivers a Jellyfin/Kodi-friendly organized output layout plus NFO me
 
 ### season_number Bug Fix (OUT-03)
 
-- **D-05: One-line fix at `internal/mux/mux.go:108`.** Change `"season_number="+fmt.Sprintf("%v", info.EpisodeMetadata.EpisodeNumber)` to use `info.EpisodeMetadata.SeasonNumber`. `SeasonNumber` already exists on `api.EpisodeMetadata` (`internal/api/types.go:27`) and is populated for both single-episode and season flows (`internal/download/season.go:59`). This must land before any NFO emission so the NFO inherits the correct value. Trivial; included in this phase because the bug is explicitly listed in OUT-03 and must be fixed before metadata is mirrored into NFO.
+- **D-05: One-line season_number bug fix.** The fix lands at `internal/mux/mux.go:108` — change `"season_number="+fmt.Sprintf("%v", info.EpisodeMetadata.EpisodeNumber)` to use `info.EpisodeMetadata.SeasonNumber`. `SeasonNumber` already exists on `api.EpisodeMetadata` (`internal/api/types.go:27`) and is populated for both single-episode and season flows (`internal/download/season.go:59`). This must land before any NFO emission so the NFO inherits the correct value. Trivial; included in this phase because the bug is explicitly listed in OUT-03 and must be fixed before metadata is mirrored into NFO.
 
 ### NFO Metadata
 

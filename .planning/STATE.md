@@ -66,8 +66,9 @@ Prior v1.0 Improvement & Optimization Pass shipped 2026-07-10 (Phases 1-5, all c
 | 260709-v3w | Fix speed display unit — Bps() used newest instead of oldest sample timestamp | 2026-07-10 | 0167928 | [260709-v3w-fix-speed-display-unit-bps-uses-wrong-ol](./quick/260709-v3w-fix-speed-display-unit-bps-uses-wrong-ol/) |
 | 260711-subtitle-integrity | Reject invalid or incomplete subtitle HTTP responses before muxing | 2026-07-11 | 0ecbc05 | [260711-fix-incomplete-subtitle-download](./quick/260711-fix-incomplete-subtitle-download/) |
 | 260711-alt-audio-subs | Mux distinct same-locale subtitle tracks from matching audio playbacks | 2026-07-11 | ea83a7e | [260711-mux-alternate-audio-subtitles](./quick/260711-mux-alternate-audio-subtitles/) |
+| 260711-1651 | Fix --urls list file CLI alias | 2026-07-11 | uncommitted | [260711-1651-fix-urls-file-alias](./quick/260711-1651-fix-urls-file-alias/) |
 
-Last activity: 2026-07-11
+Last activity: 2026-07-11 - Completed quick task 260711-1651: Fix --urls list file CLI alias
 
 ## Next Action
 
